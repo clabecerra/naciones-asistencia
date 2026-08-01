@@ -129,7 +129,7 @@ function AccessScreen({ correctPassword, onUnlock }) {
     else { setError(true); setValue(''); }
   }
   return (
-    <div style={{ background: NAVY, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ background: NAVY, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
       <div style={{ marginBottom: 8 }}>{LOGO_SVG}</div>
       <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 28 }}>Registro de Asistencia</div>
       <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: '28px 24px', width: '100%', maxWidth: 320 }}>
