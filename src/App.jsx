@@ -207,7 +207,10 @@ export default function AttendanceTracker() {
 
   // Auth: detectar sesión activa
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => { setIsAdmin(!!user); });
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setIsAdmin(!!user);
+      if (user) setShowLogin(false);
+    });
     return unsub;
   }, []);
 
