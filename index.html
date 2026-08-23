@@ -4,9 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Naciones LMS - Registro de Asistencia</title>
+    <style>
+      .build-info{
+        text-align:center;margin:18px 0 10px;
+        font-size:10.5px;color:#7B9BB8;opacity:0.6;
+        letter-spacing:.2px;font-family:'Helvetica Neue',Arial,sans-serif;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="build-info" class="build-info"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script type="module">
+      // Reemplazado por el workflow de GitHub Actions al desplegar (ver
+      // .github/workflows/firebase-hosting-merge.yml). Si este texto llega
+      // tal cual al navegador, el despliegue no pasó por el workflow (por
+      // ejemplo, un `firebase deploy` manual) y no hay forma confiable de
+      // saber qué código quedó publicado.
+      const BUILD_VERSION = '__BUILD_VERSION__';
+      const el = document.getElementById('build-info');
+      // OJO: no comparar contra el marcador sin reemplazar completo, con
+      // los dos guiones bajos a cada lado — el sed del workflow busca y
+      // reemplaza exactamente ese texto en todo el archivo, así que si
+      // apareciera acá también quedaría reemplazado (hasta en este
+      // comentario) y la detección se rompería en silencio. Por eso se usa
+      // solo la palabra sin guiones bajos, que el sed no toca.
+      const sinVersion = BUILD_VERSION.indexOf('BUILD_VERSION') !== -1;
+      el.textContent = sinVersion ? 'sin versión (deploy manual)' : BUILD_VERSION;
+    </script>
   </body>
 </html>

@@ -13,6 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Inyectar marca de versión en el footer
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          STAMP="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          sed -i "s/__BUILD_VERSION__/${STAMP} · ${SHORT_SHA} (preview)/" index.html
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
