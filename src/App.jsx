@@ -584,7 +584,7 @@ export default function AttendanceTracker() {
   if (!authUser) return <LoginScreen />;
 
   const tabs = isAdmin ? ['registro','estadisticas','competencias','crearMes'] : ['registro','estadisticas'];
-  const tabLabel = { registro:'Registro', estadisticas:'Estadísticas', competencias:'Competencias', crearMes:'Crear nuevo mes' };
+  const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', crearMes:'Crear nuevo mes' };
 
   return (
     <div style={{ background: PAPER, minHeight: '100vh', color: INK, fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
@@ -625,7 +625,7 @@ export default function AttendanceTracker() {
             </div>
           )}
 
-          {activeTab !== 'crearMes' && (
+          {(activeTab === 'registro' || activeTab === 'estadisticas') && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", fontSize: 22, fontWeight: 700, margin: 0 }}>{monthLabel(monthDate)}</h2>
               <div style={{ display: 'flex', gap: 4 }}>
