@@ -340,7 +340,11 @@ export default function AttendanceTracker() {
     const q = query(collection(db,'jugadorasRoster'), where('activa','==',true));
     const unsub = onSnapshot(q, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      list.sort((a,b) => (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''));
+      // Por nombre primero, no apellido: la tabla de Registro muestra
+      // "{nombre} {apellido}" y usa este orden tal cual, así que tiene que
+      // coincidir con lo primero que se lee. No afecta a Estadísticas: esa
+      // tabla se reordena aparte por asistencia general (más abajo).
+      list.sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'') || (a.apellido||'').localeCompare(b.apellido||''));
       setRoster(list);
       setRosterLoading(false);
     }, (err) => {
