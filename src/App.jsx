@@ -676,7 +676,7 @@ export default function AttendanceTracker() {
 
   if (!authUser) return <LoginScreen />;
 
-  const tabs = isAdmin ? ['registro','estadisticas','competencias','partidos','crearMes'] : ['registro','estadisticas'];
+  const tabs = isAdmin ? ['registro','estadisticas','crearMes','competencias','partidos'] : ['registro','estadisticas'];
   const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', partidos:'Partidos', crearMes:'Crear mes de asistencia' };
 
   return (
