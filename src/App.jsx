@@ -34,7 +34,6 @@ const MUTED = '#7B9BB8';
 const PRESENTE = '#3A6B52';
 const AUSENTE  = '#A8432F';
 const NAVY  = '#1B3A6B';
-const STEEL = '#4A6FA5';
 
 const WEEKDAY_LABELS = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
 const PROXIMOS_MIN = 6; // aviso admin si quedan menos entrenamientos programados que esto
