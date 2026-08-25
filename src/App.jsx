@@ -308,6 +308,10 @@ export default function AttendanceTracker() {
   const [nuevoPartido, setNuevoPartido]           = useState(PARTIDO_VACIO);
   const [partidoEditandoId, setPartidoEditandoId] = useState(null);
   const [partidoEdicion, setPartidoEdicion]       = useState(PARTIDO_VACIO);
+  const [nominaAbiertaId, setNominaAbiertaId]     = useState(null);
+  const [nominaSeleccion, setNominaSeleccion]     = useState([]);
+  const [nominaGuardando, setNominaGuardando]     = useState(false);
+  const [nominaError, setNominaError]             = useState(null);
 
   // Auth: sesión + rol
   useEffect(() => {
@@ -550,6 +554,29 @@ export default function AttendanceTracker() {
 
   function nombreCompetencia(competenciaId) {
     return competencias.find((c) => c.id === competenciaId)?.nombre || '';
+  }
+
+  function abrirNomina(p) {
+    setNominaAbiertaId(p.id);
+    setNominaSeleccion(p.nomina || []);
+    setNominaError(null);
+  }
+
+  function toggleNominaJugadora(uid) {
+    setNominaSeleccion((prev) => prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]);
+  }
+
+  async function guardarNomina() {
+    setNominaGuardando(true);
+    try {
+      await updateDoc(doc(db,'partidos',nominaAbiertaId), { nomina: nominaSeleccion });
+      setNominaAbiertaId(null);
+      setNominaError(null);
+    } catch (e) {
+      // No cerrar el panel: un rechazo de permisos no puede verse igual
+      // que un guardado exitoso.
+      setNominaError('No se pudo guardar la nómina. Intenta de nuevo.');
+    } finally { setNominaGuardando(false); }
   }
 
   function estaBloqueado(ent) { return bloqueado(ent) && !isAdmin; }
@@ -1062,10 +1089,40 @@ export default function AttendanceTracker() {
                         <div style={{ display:'flex',gap:10 }}>
                           <button onClick={()=>empezarEdicionPartido(p)}
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>Editar</button>
+                          <button onClick={()=>nominaAbiertaId===p.id ? setNominaAbiertaId(null) : abrirNomina(p)}
+                            style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
+                            Nómina ({(p.nomina||[]).length})
+                          </button>
                           <button onClick={()=>alternarSuspensionPartido(p)}
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
                             {p.estado==='suspendido'?'Reactivar':'Suspender'}
                           </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {nominaAbiertaId===p.id && (
+                      <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
+                        <div style={{ maxHeight:220,overflowY:'auto',border:`1px solid ${LINE}`,borderRadius:8,padding:'8px 12px' }}>
+                          {roster
+                            .slice()
+                            .sort((a,b) => (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''))
+                            .map((j) => (
+                              <label key={j.id} style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:13,cursor:'pointer' }}>
+                                <input type="checkbox" checked={nominaSeleccion.includes(j.id)} onChange={()=>toggleNominaJugadora(j.id)} />
+                                {j.nombre} {j.apellido}
+                              </label>
+                            ))}
+                        </div>
+                        {nominaError && <p style={{ fontSize:12,color:AUSENTE,margin:'8px 0 0' }}>{nominaError}</p>}
+                        <div style={{ display:'flex',gap:8,marginTop:10 }}>
+                          <button onClick={guardarNomina} disabled={nominaGuardando}
+                            style={{ padding:'7px 14px',borderRadius:6,border:'none',background:INK,color:'white',fontSize:12,
+                              cursor:nominaGuardando?'default':'pointer',opacity:nominaGuardando?0.7:1 }}>
+                            {nominaGuardando?'Guardando…':'Guardar'}
+                          </button>
+                          <button onClick={()=>setNominaAbiertaId(null)} disabled={nominaGuardando}
+                            style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12 }}>Cancelar</button>
                         </div>
                       </div>
                     )}
