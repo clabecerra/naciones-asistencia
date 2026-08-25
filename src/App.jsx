@@ -1106,7 +1106,11 @@ export default function AttendanceTracker() {
                         <div style={{ maxHeight:220,overflowY:'auto',border:`1px solid ${LINE}`,borderRadius:8,padding:'8px 12px' }}>
                           {roster
                             .slice()
-                            .sort((a,b) => (a.apellido||'').localeCompare(b.apellido||'') || (a.nombre||'').localeCompare(b.nombre||''))
+                            // Por nombre primero, no apellido: la fila muestra
+                            // "{nombre} {apellido}", así que el orden tiene que
+                            // coincidir con lo primero que se lee, o se ve
+                            // desordenado aunque no lo esté.
+                            .sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'') || (a.apellido||'').localeCompare(b.apellido||''))
                             .map((j) => (
                               <label key={j.id} style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:13,cursor:'pointer' }}>
                                 <input type="checkbox" checked={nominaSeleccion.includes(j.id)} onChange={()=>toggleNominaJugadora(j.id)} />
