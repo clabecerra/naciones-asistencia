@@ -160,7 +160,7 @@ function LoginShell({ children }) {
   return (
     <div style={{ background: NAVY, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
       <div style={{ marginBottom: 8 }}>{LOGO_SVG}</div>
-      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 28 }}>Registro de Asistencia</div>
+      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 28 }}>Gestión del Equipo</div>
       <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 14, padding: '28px 24px', width: '100%', maxWidth: 320 }}>
         {children}
       </div>
@@ -525,7 +525,7 @@ export default function AttendanceTracker() {
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ffffff', opacity: 0.9 }}>
                 <Users size={15} />
-                <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Registro de Asistencia</span>
+                <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Gestión del Equipo</span>
               </div>
             </div>
           </div>
