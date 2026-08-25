@@ -1,113 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Check, Users, Lock, Download, LogOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { initializeApp } from 'firebase/app';
 import {
-  initializeFirestore, collection, query, where, orderBy, onSnapshot,
+  collection, query, where, orderBy, onSnapshot,
   doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from './firebase';
+import { INK, PAPER, LINE, MUTED, PRESENTE, AUSENTE, NAVY, WEEKDAY_LABELS } from './theme';
+import { dateKey, parseDateInput, getDaysInMonth, monthLabel, calcularBloqueaEn, bloqueado } from './utils/fechas';
+import { normEmail, formatRut, isValidRut } from './utils/rut';
+import { getStats } from './utils/estadisticas';
 
-// ─── CONFIGURACIÓN FIREBASE ────────────────────────────────────────────────
-// Apunta a naciones-registro: es la Firestore compartida, dueña de los datos
-// de asistencia desde el cutover (ver PLAN.md, Etapa 0). Ya no existe una
-// Firestore propia de esta app — la vieja (naciones-asistencia) quedó
-// congelada tras la migración.
-const firebaseConfig = {
-  apiKey:            "AIzaSyBlpHTU4Fn9gbIunHWP14VSYOSRN4YnxrQ",
-  authDomain:        "naciones-registro.firebaseapp.com",
-  projectId:         "naciones-registro",
-  storageBucket:     "naciones-registro.firebasestorage.app",
-  messagingSenderId: "445639540799",
-  appId:             "1:445639540799:web:b5dbc4e76bfbe852b9b88a",
-};
-// ──────────────────────────────────────────────────────────────────────────
-
-const app  = initializeApp(firebaseConfig);
-const db   = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, useFetchStreams: false });
-const auth = getAuth(app);
-
-const INK   = '#1B3A6B';
-const PAPER = '#F4F6F9';
-const LINE  = '#C8D4E3';
-const MUTED = '#7B9BB8';
-const PRESENTE = '#3A6B52';
-const AUSENTE  = '#A8432F';
-const NAVY  = '#1B3A6B';
-
-const WEEKDAY_LABELS = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
 const PROXIMOS_MIN = 6; // aviso admin si quedan menos entrenamientos programados que esto
-
-function pad(n) { return n.toString().padStart(2,'0'); }
-function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-// Inverso de dateKey, para leer el valor de <input type="date"> (mismo
-// formato "AAAA-MM-DD") como fecha local, no UTC.
-function parseDateInput(value) {
-  const [y, m, d] = value.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-// ─── RUT: copiadas tal cual de naciones-registro (public/index.html) ──────
-// La contraseña real de cada cuenta de jugadora en Firebase Auth es el RUT
-// ya formateado con puntos y guion (el campo del formulario de registro
-// autoformatea con formatRut en cada tecla antes de crear la cuenta) — si
-// esta app normalizara distinto, el login fallaría siempre para jugadoras.
-function normEmail(e) { return (e||'').trim().toLowerCase(); }
-function computeRutDv(body) {
-  let sum = 0, mul = 2;
-  for (let i = body.length - 1; i >= 0; i--) {
-    sum += parseInt(body[i], 10) * mul;
-    mul = (mul === 7) ? 2 : mul + 1;
-  }
-  const res = 11 - (sum % 11);
-  if (res === 11) return '0';
-  if (res === 10) return 'K';
-  return String(res);
-}
-function formatRut(raw) {
-  const clean = (raw||'').replace(/[^0-9kK]/g,'').toUpperCase();
-  if (clean.length === 0) return '';
-  if (clean.length === 1) return clean;
-  const dv = clean.slice(-1);
-  let body = clean.slice(0,-1).replace(/^0+(?=\d)/,'');
-  let grouped = '';
-  let count = 0;
-  for (let i = body.length - 1; i >= 0; i--) {
-    grouped = body[i] + grouped;
-    count++;
-    if (count % 3 === 0 && i !== 0) grouped = '.' + grouped;
-  }
-  return grouped + '-' + dv;
-}
-function isValidRut(formatted) {
-  const clean = (formatted||'').replace(/[^0-9kK]/g,'').toUpperCase();
-  if (clean.length < 2) return false;
-  const dv = clean.slice(-1);
-  const body = clean.slice(0,-1);
-  if (!/^\d+$/.test(body) || body.length === 0) return false;
-  return computeRutDv(body) === dv;
-}
-function getDaysInMonth(monthDate) {
-  const year = monthDate.getFullYear(), month = monthDate.getMonth();
-  const days = [];
-  for (let d = 1; d <= new Date(year,month+1,0).getDate(); d++) days.push(new Date(year,month,d));
-  return days;
-}
-function monthLabel(monthDate) {
-  const s = monthDate.toLocaleDateString('es-CL',{month:'long',year:'numeric'});
-  return s.charAt(0).toUpperCase()+s.slice(1);
-}
-// 23:30 del día del entrenamiento + 1 día — mismo criterio que isDayLocked
-// tenía antes. new Date(y,m,d,23,30,0) ya resuelve el horario de verano de
-// Chile correctamente porque usa el reloj local del navegador de quien
-// crea el entrenamiento.
-function calcularBloqueaEn(fecha) {
-  const limite = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate(), 23, 30, 0).getTime() + 86400000;
-  return Timestamp.fromMillis(limite);
-}
-function bloqueado(ent) {
-  return !!ent.bloqueaEn && Date.now() > ent.bloqueaEn.getTime();
-}
 
 function Stamp({ status, onClick, disabled, title }) {
   // borderWidth/borderStyle por separado, no el shorthand "border": el
@@ -626,19 +531,9 @@ export default function AttendanceTracker() {
     } catch (e) { setError('No se pudo actualizar el entrenamiento.'); }
   }
 
-  function getStats(jugadoraId, ents) {
-    let presente = 0, ausente = 0;
-    ents.forEach((ent) => {
-      const v = asistencia[ent.id]?.[jugadoraId]?.estado;
-      if (v==='presente') presente++; else if (v==='ausente') ausente++;
-    });
-    const marked = presente+ausente;
-    return { presente, ausente, pct: marked ? Math.round((presente/marked)*100) : null };
-  }
-
   function downloadExcelReport() {
     const rows = roster
-      .map((j) => ({ j, wed: getStats(j.id,wedEnt), sun: getStats(j.id,sunEnt), general: getStats(j.id,activeEnt) }))
+      .map((j) => ({ j, wed: getStats(asistencia,j.id,wedEnt), sun: getStats(asistencia,j.id,sunEnt), general: getStats(asistencia,j.id,activeEnt) }))
       .sort((a,b) => (b.general.pct??-1)-(a.general.pct??-1))
       .map(({ j, wed, sun, general }) => ({
         'Nombre': `${j.nombre} ${j.apellido}`.trim(),
@@ -903,7 +798,7 @@ export default function AttendanceTracker() {
               </thead>
               <tbody>
                 {roster
-                  .map((j) => ({ j, wed:getStats(j.id,wedEnt), sun:getStats(j.id,sunEnt), general:getStats(j.id,activeEnt) }))
+                  .map((j) => ({ j, wed:getStats(asistencia,j.id,wedEnt), sun:getStats(asistencia,j.id,sunEnt), general:getStats(asistencia,j.id,activeEnt) }))
                   .sort((a,b) => (b.general.pct??-1)-(a.general.pct??-1))
                   .map(({ j, wed, sun, general }) => (
                     <tr key={j.id}>
