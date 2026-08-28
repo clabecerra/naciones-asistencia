@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Users, Lock, LogOut } from 'lucide-react';
 import {
   collection, query, where, orderBy, onSnapshot,
@@ -148,6 +148,26 @@ export default function AttendanceTracker() {
     return unsub;
   }, [isAdmin]);
 
+  // Barra de pestañas: señal de que hay más contenido a la derecha solo
+  // cuando de verdad se puede seguir desplazando (pantalla angosta con
+  // varias pestañas de admin) -- no es un adorno fijo, se recalcula al
+  // hacer scroll, al cambiar isAdmin (cambia la cantidad de pestañas) y
+  // al redimensionar la ventana.
+  const tabsScrollRef = useRef(null);
+  const [tabsScrollableRight, setTabsScrollableRight] = useState(false);
+
+  function updateTabsScrollState() {
+    const el = tabsScrollRef.current;
+    if (!el) { setTabsScrollableRight(false); return; }
+    setTabsScrollableRight(el.scrollWidth > el.clientWidth + el.scrollLeft + 1);
+  }
+
+  useEffect(() => {
+    updateTabsScrollState();
+    window.addEventListener('resize', updateTabsScrollState);
+    return () => window.removeEventListener('resize', updateTabsScrollState);
+  }, [authUser, isAdmin]);
+
   function changeMonth(delta) { const d = new Date(monthDate); d.setMonth(d.getMonth()+delta); setMonthDate(d); }
 
   const activeEnt = entrenamientos.filter((e) => e.estado !== 'suspendido');
@@ -216,14 +236,21 @@ export default function AttendanceTracker() {
         </header>
 
         {/* PESTAÑAS */}
-        <div style={{ display:'flex',gap:4,marginBottom:16,borderBottom:`1px solid ${LINE}` }}>
-          {tabs.map((tab) => (
-            <button key={tab} onClick={()=>setActiveTab(tab)}
-              style={{ padding:'8px 16px',fontSize:13,fontWeight:600,border:'none',background:'none',cursor:'pointer',
-                color:activeTab===tab?INK:MUTED, borderBottom:activeTab===tab?`2px solid ${INK}`:'2px solid transparent',marginBottom:-1 }}>
-              {tabLabel[tab]}
-            </button>
-          ))}
+        <div style={{ position:'relative', marginBottom:16 }}>
+          <div ref={tabsScrollRef} onScroll={updateTabsScrollState}
+            style={{ display:'flex',gap:4,overflowX:'auto',WebkitOverflowScrolling:'touch',borderBottom:`1px solid ${LINE}` }}>
+            {tabs.map((tab) => (
+              <button key={tab} onClick={()=>setActiveTab(tab)}
+                style={{ padding:'8px 16px',fontSize:13,fontWeight:600,border:'none',background:'none',cursor:'pointer',
+                  color:activeTab===tab?INK:MUTED, borderBottom:activeTab===tab?`2px solid ${INK}`:'2px solid transparent',marginBottom:-1 }}>
+                {tabLabel[tab]}
+              </button>
+            ))}
+          </div>
+          {tabsScrollableRight && (
+            <div style={{ position:'absolute', top:0, right:0, bottom:1, width:28, pointerEvents:'none',
+              background:`linear-gradient(to right, transparent, ${PAPER})` }} />
+          )}
         </div>
 
         {activeTab==='registro' && (
