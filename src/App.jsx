@@ -238,7 +238,7 @@ export default function AttendanceTracker() {
         {/* PESTAÑAS */}
         <div style={{ position:'relative', marginBottom:16 }}>
           <div ref={tabsScrollRef} onScroll={updateTabsScrollState}
-            style={{ display:'flex',gap:4,overflowX:'auto',WebkitOverflowScrolling:'touch',borderBottom:`1px solid ${LINE}` }}>
+            style={{ display:'flex',gap:4,overflowX:'auto',overflowY:'hidden',WebkitOverflowScrolling:'touch',borderBottom:`1px solid ${LINE}` }}>
             {tabs.map((tab) => (
               <button key={tab} onClick={()=>setActiveTab(tab)}
                 style={{ padding:'8px 16px',fontSize:13,fontWeight:600,border:'none',background:'none',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
