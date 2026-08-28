@@ -241,7 +241,7 @@ export default function AttendanceTracker() {
             style={{ display:'flex',gap:4,overflowX:'auto',WebkitOverflowScrolling:'touch',borderBottom:`1px solid ${LINE}` }}>
             {tabs.map((tab) => (
               <button key={tab} onClick={()=>setActiveTab(tab)}
-                style={{ padding:'8px 16px',fontSize:13,fontWeight:600,border:'none',background:'none',cursor:'pointer',
+                style={{ padding:'8px 16px',fontSize:13,fontWeight:600,border:'none',background:'none',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
                   color:activeTab===tab?INK:MUTED, borderBottom:activeTab===tab?`2px solid ${INK}`:'2px solid transparent',marginBottom:-1 }}>
                 {tabLabel[tab]}
               </button>
