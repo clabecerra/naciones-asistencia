@@ -4,6 +4,7 @@ import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteF
 import { db } from '../firebase';
 import { INK, PAPER, LINE, MUTED, PRESENTE, AUSENTE } from '../theme';
 import { dateKey, parseDateInput } from '../utils/fechas';
+import { nombrePartido } from '../utils/partidos';
 
 export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
   const PARTIDO_VACIO = { competenciaId:'', fecha:'', lugar:'', tipo:'oficial', rival:'' };
@@ -223,10 +224,7 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                     ) : (
                       <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
                         <div>
-                          <span style={{ fontWeight:600,fontSize:14 }}>
-                            {dateKey(p.fecha.toDate())} · {p.lugar}
-                            {p.rival ? ` vs ${p.rival}` : ''}
-                          </span>
+                          <span style={{ fontWeight:600,fontSize:14 }}>{nombrePartido(p)}</span>
                           <span style={{ marginLeft:8,fontSize:11,padding:'2px 8px',borderRadius:999,background:'#EEF1F6',color:INK }}>
                             {p.tipo}
                           </span>

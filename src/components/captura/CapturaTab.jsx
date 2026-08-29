@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { INK, PAPER, LINE, MUTED } from '../../theme';
-import { dateKey } from '../../utils/fechas';
+import { nombrePartido } from '../../utils/partidos';
 import { tomarControl } from '../../utils/eventos';
 import { SeleccionPartido } from './SeleccionPartido';
 import { AlineacionSet } from './AlineacionSet';
@@ -90,7 +90,7 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
       <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,flexWrap:'wrap',gap:8 }}>
         <div style={{ fontSize:13,color:MUTED }}>
           <button onClick={volver} style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline',padding:0,marginRight:8 }}>← Otro partido</button>
-          {dateKey(partido.fecha.toDate())} · {partido.lugar}{partido.rival ? ` vs ${partido.rival}` : ''}
+          {nombrePartido(partido)}
         </div>
       </div>
 
