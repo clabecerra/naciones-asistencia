@@ -103,6 +103,21 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
     return competencias.find((c) => c.id === competenciaId)?.nombre || '';
   }
 
+  // "programado"/"suspendido" son los únicos estados que esta pestaña
+  // escribe, pero la captura en vivo puede llevar el partido a "jugado" (o
+  // dejarlo con capturaIniciada mientras sigue en curso) desde la pestaña
+  // Captura -- si no se refleja acá, un partido ya jugado se ve igual que
+  // uno recién creado.
+  function estadoBadge(p) {
+    if (p.estado === 'suspendido') return { label: 'Suspendido', bg: '#F6E9E6', color: AUSENTE };
+    // Morado, sin usar en ningún otro badge de la app (verde=programado,
+    // rojo=suspendido, ámbar=captura en curso) -- para que "Jugado" no se
+    // confunda con "Programado" a simple vista.
+    if (p.estado === 'jugado') return { label: 'Jugado', bg: '#EFE7F7', color: '#6A3FA0', bold: true };
+    if (p.capturaIniciada) return { label: 'Captura en curso', bg: '#FBF2E3', color: '#8A5A1E' };
+    return { label: 'Programado', bg: '#EAF2EC', color: PRESENTE };
+  }
+
   function abrirNomina(p) {
     setNominaAbiertaId(p.id);
     setNominaSeleccion(p.nomina || []);
@@ -206,7 +221,7 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                           style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12 }}>Cancelar</button>
                       </div>
                     ) : (
-                      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8 }}>
+                      <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
                         <div>
                           <span style={{ fontWeight:600,fontSize:14 }}>
                             {dateKey(p.fecha.toDate())} · {p.lugar}
@@ -218,12 +233,12 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                           {p.competenciaId && (
                             <span style={{ marginLeft:8,fontSize:12,color:MUTED }}>{nombreCompetencia(p.competenciaId)}</span>
                           )}
-                          <span style={{ marginLeft:8,fontSize:11,padding:'2px 8px',borderRadius:999,
-                            background:p.estado==='suspendido'?'#F6E9E6':'#EAF2EC',color:p.estado==='suspendido'?AUSENTE:PRESENTE }}>
-                            {p.estado==='suspendido'?'Suspendido':'Programado'}
+                          <span style={{ marginLeft:8,fontSize:11,padding:'2px 8px',borderRadius:999,fontWeight:estadoBadge(p).bold?700:400,
+                            background:estadoBadge(p).bg,color:estadoBadge(p).color }}>
+                            {estadoBadge(p).label}
                           </span>
                         </div>
-                        <div style={{ display:'flex',gap:10 }}>
+                        <div style={{ display:'flex',gap:10,flexWrap:'wrap' }}>
                           <button onClick={()=>empezarEdicionPartido(p)}
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>Editar</button>
                           <button onClick={()=>nominaAbiertaId===p.id ? setNominaAbiertaId(null) : abrirNomina(p)}

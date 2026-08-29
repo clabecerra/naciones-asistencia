@@ -15,6 +15,7 @@ import { CompetenciasTab } from './components/CompetenciasTab';
 import { PartidosTab } from './components/PartidosTab';
 import { EstadisticasTab } from './components/EstadisticasTab';
 import { RegistroTab } from './components/RegistroTab';
+import { CapturaTab } from './components/captura/CapturaTab';
 
 const PROXIMOS_MIN = 6; // aviso admin si quedan menos entrenamientos programados que esto
 
@@ -35,6 +36,7 @@ export default function AttendanceTracker() {
 
   const [activeTab, setActiveTab] = useState('registro');
   const [proximosCount, setProximosCount] = useState(null);
+  const [capturaPartidoId, setCapturaPartidoId] = useState(null);
 
   const [competencias, setCompetencias]           = useState([]);
   const [competenciasLoading, setCompetenciasLoading] = useState(true);
@@ -182,8 +184,13 @@ export default function AttendanceTracker() {
 
   if (!authUser) return <LoginScreen />;
 
-  const tabs = isAdmin ? ['registro','estadisticas','crearMes','competencias','partidos'] : ['registro','estadisticas'];
-  const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', partidos:'Partidos', crearMes:'Crear mes de asistencia' };
+  // "captura" queda visible para cualquiera autenticada, no solo admin:
+  // quien registra en la banca durante un partido no siempre tiene cuenta
+  // de administradora (ver PLAN.md, Etapa 2).
+  const tabs = isAdmin
+    ? ['registro','estadisticas','crearMes','competencias','partidos','captura']
+    : ['registro','estadisticas','captura'];
+  const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', partidos:'Partidos', crearMes:'Crear mes de asistencia', captura:'Captura en vivo' };
 
   return (
     <div style={{ background: PAPER, minHeight: '100vh', color: INK, fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
@@ -273,6 +280,12 @@ export default function AttendanceTracker() {
         {/* PARTIDOS */}
         {activeTab==='partidos' && isAdmin && (
           <PartidosTab isAdmin={isAdmin} authUser={authUser} competencias={competencias} roster={roster} />
+        )}
+
+        {/* CAPTURA EN VIVO */}
+        {activeTab==='captura' && (
+          <CapturaTab partidoIdInicial={capturaPartidoId} onCambiarPartido={setCapturaPartidoId}
+            roster={roster} authUser={authUser} />
         )}
 
         {/* CREAR NUEVO MES */}
