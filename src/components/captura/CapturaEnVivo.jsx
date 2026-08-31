@@ -181,25 +181,28 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
   function celdaEmbajadora() {
     const id = set.embajadoraId;
     if (!id) return <div />;
-    if (!estado.embajadoraDentro) {
-      return (
-        <button onClick={()=>ingresarEmbajadora('nuestro')} disabled={noPuedeRegistrar}
-          style={{ padding:'10px 14px',borderRadius:10,textAlign:'left',border:`1px dashed ${INK}`,background:'white',
-            cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
-          <div style={{ fontSize:10,fontWeight:700,color:INK }}>EMB</div>
-          <div style={{ fontSize:12,color:MUTED }}>Ingresar — {nombre(id)}</div>
-        </button>
-      );
-    }
-    const dentro = !estado.embajadoraFuera;
+    // Parte fuera, pero fuera ya puede quemar (conserva las dos acciones
+    // ofensivas, igual que cualquier jugadora fuera) -- entrar es una
+    // acción aparte, no un requisito para poder registrarle una jugada.
+    const puedeEntrar = !estado.embajadoraDentro;
+    const dentro = estado.embajadoraDentro && !estado.embajadoraFuera;
     return (
-      <button onClick={()=>setAccionJugadora({ id, dentro })} disabled={noPuedeRegistrar}
-        style={{ padding:'10px 14px',borderRadius:10,textAlign:'left',
-          border:`1px solid ${dentro?PRESENTE:LINE}`,background:dentro?'#EAF2EC':'#F5F4F1',
-          cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
-        <div style={{ fontSize:10,fontWeight:700,color:dentro?PRESENTE:MUTED }}>EMB</div>
-        <div style={{ fontSize:13,fontWeight:600,color:dentro?INK:MUTED,textDecoration:dentro?'none':'line-through' }}>{nombre(id)}</div>
-      </button>
+      <div>
+        <button onClick={()=>setAccionJugadora({ id, dentro })} disabled={noPuedeRegistrar}
+          style={{ width:'100%',padding:'10px 14px',borderRadius:10,textAlign:'left',
+            border:`1px solid ${dentro?PRESENTE:LINE}`,background:dentro?'#EAF2EC':'#F5F4F1',
+            cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          <div style={{ fontSize:10,fontWeight:700,color:dentro?PRESENTE:MUTED }}>EMB</div>
+          <div style={{ fontSize:13,fontWeight:600,color:dentro?INK:MUTED,textDecoration:(!dentro && !puedeEntrar)?'line-through':'none' }}>{nombre(id)}</div>
+        </button>
+        {puedeEntrar && (
+          <button onClick={()=>ingresarEmbajadora('nuestro')} disabled={noPuedeRegistrar}
+            style={{ marginTop:4,width:'100%',padding:'4px 8px',borderRadius:6,border:`1px dashed ${INK}`,background:'white',
+              color:INK,fontSize:11,cursor:noPuedeRegistrar?'default':'pointer' }}>
+            Entrar a la cancha
+          </button>
+        )}
+      </div>
     );
   }
 

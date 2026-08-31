@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { INK, PAPER, LINE, MUTED } from '../../theme';
+import { INK, PAPER, LINE, MUTED, AUSENTE } from '../../theme';
 import { nombrePartido } from '../../utils/partidos';
 import { tomarControl } from '../../utils/eventos';
 import { SeleccionPartido } from './SeleccionPartido';
@@ -10,11 +10,23 @@ import { CapturaEnVivo } from './CapturaEnVivo';
 
 const CONTROL_STALE_MS = 3 * 60 * 60 * 1000; // 3h sin actividad: se asume perdido (batería, señal)
 
+// No mostrar un error de consulta como si fuera "sigue cargando" -- mismo
+// problema que ya se dio con la nómina de asistencia: un permission-denied
+// (o un índice de Firestore faltante) silencioso se ve igual que datos que
+// todavía no llegan, si no se distingue.
+function mensajeErrorCarga(err, que) {
+  console.error(`Error cargando ${que}:`, err);
+  if (err.code === 'permission-denied') return `No se pudo cargar ${que}: tu cuenta no tiene permiso para verlo.`;
+  if (err.code === 'failed-precondition') return `No se pudo cargar ${que}: falta un índice de Firestore para esta consulta.`;
+  return `No se pudo cargar ${que} (${err.code || 'error desconocido'}). Intenta de nuevo.`;
+}
+
 export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUser }) {
   const [partidoId, setPartidoId] = useState(partidoIdInicial || null);
   const [partido, setPartido] = useState(null);
   const [sets, setSets] = useState({});
   const [reclamando, setReclamando] = useState(false);
+  const [errorCarga, setErrorCarga] = useState(null);
 
   useEffect(() => { setPartidoId(partidoIdInicial || null); }, [partidoIdInicial]);
 
@@ -22,7 +34,8 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
     if (!partidoId) { setPartido(null); return; }
     const unsub = onSnapshot(doc(db,'partidos',partidoId), (snap) => {
       setPartido(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-    });
+      setErrorCarga(null);
+    }, (err) => setErrorCarga(mensajeErrorCarga(err, 'el partido')));
     return unsub;
   }, [partidoId]);
 
@@ -33,7 +46,8 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
       const next = {};
       snap.forEach((d) => { next[d.id] = { id: d.id, ...d.data() }; });
       setSets(next);
-    });
+      setErrorCarga(null);
+    }, (err) => setErrorCarga(mensajeErrorCarga(err, 'los sets del partido')));
     return unsub;
   }, [partidoId]);
 
@@ -74,12 +88,22 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
   useEffect(() => {
     if (fase?.kind !== 'captura') { setEventos([]); return; }
     const q = query(collection(db,'partidos',partidoId,'sets',fase.n,'eventos'), orderBy('orden','asc'));
-    const unsub = onSnapshot(q, (snap) => setEventos(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    const unsub = onSnapshot(q, (snap) => {
+      setEventos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setErrorCarga(null);
+    }, (err) => setErrorCarga(mensajeErrorCarga(err, 'los eventos del set')));
     return unsub;
   }, [partidoId, fase?.kind, fase?.n]);
 
   if (!partidoId) {
     return <SeleccionPartido onSeleccionar={(id) => { setPartidoId(id); onCambiarPartido?.(id); }} />;
+  }
+  if (errorCarga) {
+    return (
+      <div style={{ textAlign:'center',color:AUSENTE,padding:'20px 0',border:`1px dashed ${AUSENTE}`,borderRadius:12 }}>
+        {errorCarga}
+      </div>
+    );
   }
   if (!partido || !fase) {
     return <div style={{ color:MUTED,fontSize:13,padding:'12px 0' }}>Cargando…</div>;

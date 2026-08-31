@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { INK, LINE, MUTED } from '../../theme';
+import { INK, LINE, MUTED, AUSENTE } from '../../theme';
 import { nombrePartido } from '../../utils/partidos';
 
 // Solo oficiales y amistosos tienen captura en vivo en esta etapa -- los
@@ -10,13 +10,26 @@ import { nombrePartido } from '../../utils/partidos';
 export function SeleccionPartido({ onSeleccionar }) {
   const [partidos, setPartidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const q = query(collection(db,'partidos'), where('tipo','in',['oficial','amistoso']), orderBy('fecha','desc'));
     const unsub = onSnapshot(q, (snap) => {
       setPartidos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setError(null);
       setLoading(false);
-    }, () => setLoading(false));
+    }, (err) => {
+      // No mostrar como "sin partidos" -- un error de consulta se ve
+      // exactamente igual que una lista vacía si no se distingue (mismo
+      // problema que ya se dio una vez con la nómina de asistencia).
+      console.error('Error cargando partidos para captura:', err);
+      setError(err.code === 'permission-denied'
+        ? 'No se pudo cargar la lista de partidos: tu cuenta no tiene permiso para verla.'
+        : err.code === 'failed-precondition'
+        ? 'No se pudo cargar la lista de partidos: falta un índice de Firestore para esta consulta.'
+        : `No se pudo cargar la lista de partidos (${err.code || 'error desconocido'}). Intenta de nuevo.`);
+      setLoading(false);
+    });
     return unsub;
   }, []);
 
@@ -32,6 +45,10 @@ export function SeleccionPartido({ onSeleccionar }) {
       </p>
       {loading ? (
         <div style={{ color:MUTED,fontSize:13,padding:'12px 0' }}>Cargando…</div>
+      ) : error ? (
+        <div style={{ textAlign:'center',color:AUSENTE,padding:'20px 0',border:`1px dashed ${AUSENTE}`,borderRadius:12 }}>
+          {error}
+        </div>
       ) : disponibles.length === 0 ? (
         <div style={{ color:MUTED,fontSize:13,padding:'12px 0' }}>
           Todavía no hay ningún partido con nómina lista para capturar.
