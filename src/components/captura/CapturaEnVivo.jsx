@@ -24,6 +24,8 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
   const [recuperando, setRecuperando] = useState(false);
   const [cierre, setCierre] = useState(null); // { motivo, equipo, rival }
   const [, forceTick] = useState(0);
+  const [destellos, setDestellos] = useState([]); // [{key, targetId}] -- confirmación visual, transitoria
+  const [ultimaAccion, setUltimaAccion] = useState(null); // {texto} -- indicador permanente
 
   const estado = useMemo(() => estadoDelSet(eventos, set), [eventos, set]);
   const bloqueado = !puedeEditar || escribiendo || !!writeError;
@@ -38,7 +40,41 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
     return j ? `${j.nombre} ${j.apellido}`.trim() : '';
   }
 
+  // Texto corto ("quién y qué") y a quién le corresponde el destello, a
+  // partir de los mismos datos que ya arma cada acción -- una sola fuente
+  // para el indicador permanente y para el destello, sin repetir la
+  // lógica en cada botón.
+  function describirEvento(ev) {
+    if (ev.tipo === 'lanzamiento') {
+      const jugadoraId = ev.lanzadora !== 'RIVAL' ? ev.lanzadora : ev.receptora;
+      const verbo = ev.resultado === 'recepcion' ? 'atrapó' : (ev.lanzadora === 'RIVAL' ? 'la quemaron' : 'quemó');
+      return { targetId: jugadoraId, texto: `${nombre(jugadoraId)}: ${verbo}` };
+    }
+    if (ev.tipo === 'ingreso_embajadora') {
+      return ev.equipo === 'nuestro'
+        ? { targetId: set.embajadoraId, texto: 'Entró la embajadora' }
+        : { targetId: 'entrada-embajadora-rival', texto: 'Entró la embajadora rival' };
+    }
+    if (ev.tipo === 'pase_incompleto') return { targetId: 'pase_incompleto', texto: 'Pase incompleto' };
+    if (ev.tipo === 'tiro_atrapado') return { targetId: 'tiro_atrapado', texto: 'Tiro atrapado' };
+    return { targetId: null, texto: '' };
+  }
+
+  // Destello y texto quedan al tiro, sin esperar la escritura -- en
+  // ráfagas, cada toque tiene que confirmarse solo, sin que el anterior
+  // bloquee ni tape nada. Un fallo real de todos modos se ve aparte, en
+  // el banner de error.
+  function marcarFeedback(targetId, texto) {
+    if (!targetId) return;
+    const key = `${Date.now()}-${Math.random()}`;
+    setDestellos((prev) => [...prev, { key, targetId }]);
+    setTimeout(() => setDestellos((prev) => prev.filter((d) => d.key !== key)), 650);
+    setUltimaAccion({ texto });
+  }
+
   async function commit(eventoData) {
+    const { targetId, texto } = describirEvento(eventoData);
+    marcarFeedback(targetId, texto);
     setEscribiendo(true);
     try {
       await crearEvento(partidoId, n, set.ultimoOrden || 0, {
@@ -162,11 +198,19 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
   }, [set.relojEstado]);
 
   const noCoincide = cierre && (Number(cierre.equipo) !== estado.vidasEquipo || Number(cierre.rival) !== estado.vidasRival);
+  const yaEntroEmbajadoraPropia = noPuedeRegistrar || estado.embajadoraDentro;
+  const yaEntroEmbajadoraRival = noPuedeRegistrar || estado.embajadoraRivalDentro;
 
   // Celdas fijas: misma posición y orden que la pantalla de alineación,
   // siempre -- una jugadora nunca desaparece de su casilla ni hace que las
   // demás se corran al quemarse; solo cambia de estilo (dentro/fuera). Es
   // más fácil anotar sobre un tablero que no se reordena.
+  // Destellos activos para un target -- pueden ser varios superpuestos si
+  // se vuelve a tocar antes de que termine de desvanecerse el anterior.
+  function destelloDe(targetId) {
+    return destellos.filter((d) => d.targetId === targetId).map((d) => <span key={d.key} className="destello" />);
+  }
+
   function celda(id, etiqueta) {
     if (!id) {
       return <div key={etiqueta} style={{ border:`1px dashed ${LINE}`,borderRadius:10,padding:'10px 14px',opacity:0.4 }}>
@@ -176,9 +220,10 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
     const dentro = estado.enCancha.has(id);
     return (
       <button key={id} onClick={()=>setAccionJugadora({ id, dentro })} disabled={noPuedeRegistrar}
-        style={{ padding:'10px 14px',borderRadius:10,textAlign:'left',
+        style={{ position:'relative',overflow:'hidden',padding:'10px 14px',borderRadius:10,textAlign:'left',
           border:`1px solid ${dentro?PRESENTE:LINE}`,background:dentro?'#EAF2EC':'#F5F4F1',
           cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+        {destelloDe(id)}
         <div style={{ fontSize:10,fontWeight:700,color:dentro?PRESENTE:MUTED }}>{etiqueta}</div>
         <div style={{ fontSize:13,fontWeight:600,color:dentro?INK:MUTED,textDecoration:dentro?'none':'line-through' }}>{nombre(id)}</div>
       </button>
@@ -196,25 +241,27 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
     return (
       <div>
         <button onClick={()=>setAccionJugadora({ id, dentro })} disabled={noPuedeRegistrar}
-          style={{ width:'100%',padding:'10px 14px',borderRadius:10,textAlign:'left',
+          style={{ position:'relative',overflow:'hidden',width:'100%',padding:'10px 14px',borderRadius:10,textAlign:'left',
             border:`1px solid ${dentro?PRESENTE:LINE}`,background:dentro?'#EAF2EC':'#F5F4F1',
             cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          {destelloDe(id)}
           <div style={{ fontSize:10,fontWeight:700,color:dentro?PRESENTE:MUTED }}>EMB</div>
           <div style={{ fontSize:13,fontWeight:600,color:dentro?INK:MUTED,textDecoration:(!dentro && !puedeEntrar)?'line-through':'none' }}>{nombre(id)}</div>
         </button>
-        {puedeEntrar && (
-          <button onClick={()=>ingresarEmbajadora('nuestro')} disabled={noPuedeRegistrar}
-            style={{ marginTop:4,width:'100%',padding:'4px 8px',borderRadius:6,border:`1px dashed ${INK}`,background:'white',
-              color:INK,fontSize:11,cursor:noPuedeRegistrar?'default':'pointer' }}>
-            Entrar a la cancha
-          </button>
-        )}
       </div>
     );
   }
 
   return (
     <div style={{ background:'white',border:`1px solid ${LINE}`,borderRadius:12,padding:'20px 20px 24px' }}>
+      {/* Destello: menos de un segundo, no bloquea nada -- cada uno se
+          monta y se borra solo (ver marcarFeedback), así que un toque
+          nuevo sobre el mismo botón no tiene que esperar al anterior. */}
+      <style>{`
+        @keyframes destello-pop { 0%{opacity:0.85;transform:scale(0.92);} 100%{opacity:0;transform:scale(1.18);} }
+        .destello { position:absolute; inset:0; border-radius:inherit; background:${PRESENTE};
+          pointer-events:none; animation:destello-pop 0.6s ease-out forwards; }
+      `}</style>
       {/* MARCADOR + RELOJ */}
       <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12,marginBottom:14 }}>
         <div style={{ display:'flex',gap:20 }}>
@@ -240,6 +287,14 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
           <Undo2 size={16}/> Deshacer
         </button>
       </div>
+
+      {/* Indicador permanente: qué fue lo último registrado, para saber
+          dónde se quedó sin tener que haber estado mirando la pantalla. */}
+      {ultimaAccion && (
+        <div style={{ fontSize:12,color:MUTED,marginBottom:10 }}>
+          Última: <strong style={{ color:INK }}>{ultimaAccion.texto}</strong>
+        </div>
+      )}
 
       {relojNoIniciado && (
         <div style={{ background:'#F6E9E6',border:`1px solid ${AUSENTE}`,color:AUSENTE,borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13,fontWeight:600 }}>
@@ -267,6 +322,18 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
         </div>
       )}
 
+      {/* Entra embajadora propia: justo arriba de su nombre, ancho
+          completo (igual que el resto de los botones de esta pantalla).
+          Siempre visible -- mismo criterio que el tablero, no se oculta
+          ni corre nada -- solo se apaga una vez que ya entró. */}
+      <button onClick={()=>ingresarEmbajadora('nuestro')} disabled={yaEntroEmbajadoraPropia}
+        style={{ position:'relative',overflow:'hidden',display:'block',width:'100%',maxWidth:420,marginBottom:8,
+          padding:'10px 14px',borderRadius:10,border:`1px dashed ${INK}`,background:yaEntroEmbajadoraPropia?'#F5F4F1':'white',
+          color:yaEntroEmbajadoraPropia?MUTED:INK,fontSize:13,fontWeight:600,cursor:yaEntroEmbajadoraPropia?'default':'pointer',opacity:yaEntroEmbajadoraPropia?0.6:1 }}>
+        {destelloDe(set.embajadoraId)}
+        Entra embajadora propia
+      </button>
+
       {/* Tablero fijo: misma posición y orden que la alineación. Gris/
           tachado cuando está fuera, pero nunca desaparece ni se corre. */}
       <div style={{ display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:8,maxWidth:420,marginBottom:8 }}>
@@ -275,29 +342,34 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
       <div style={{ display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:8,maxWidth:420,marginBottom:14 }}>
         {CASILLAS.map((c) => celda(set.alineacion?.[c], c))}
       </div>
-      <p style={{ fontSize:11,color:MUTED,margin:'-8px 0 14px' }}>Gris y tachada: fuera, pero puede seguir quemando.</p>
+
+      {/* Entra embajadora rival: mismo texto, mismo ancho, mismo criterio
+          de apagado -- pero sin cancha propia donde anclarla, se queda
+          junto a los grupales. */}
+      <button onClick={()=>ingresarEmbajadora('rival')} disabled={yaEntroEmbajadoraRival}
+        style={{ position:'relative',overflow:'hidden',display:'block',width:'100%',maxWidth:420,marginBottom:14,
+          padding:'10px 14px',borderRadius:10,border:`1px dashed ${AUSENTE}`,background:yaEntroEmbajadoraRival?'#F5F4F1':'white',
+          color:yaEntroEmbajadoraRival?MUTED:AUSENTE,fontSize:13,fontWeight:600,cursor:yaEntroEmbajadoraRival?'default':'pointer',opacity:yaEntroEmbajadoraRival?0.6:1 }}>
+        {destelloDe('entrada-embajadora-rival')}
+        Entra embajadora rival
+      </button>
 
       {/* Grupales: un solo toque, sin elegir jugadora -- para no perder
           el ritmo del juego. */}
       <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14,maxWidth:420 }}>
         <button onClick={()=>registrarGrupal('pase_incompleto')} disabled={noPuedeRegistrar}
-          style={{ padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
+          style={{ position:'relative',overflow:'hidden',padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
             color:noPuedeRegistrar?MUTED:AUSENTE,fontSize:14,fontWeight:700,cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          {destelloDe('pase_incompleto')}
           Pase incompleto
         </button>
         <button onClick={()=>registrarGrupal('tiro_atrapado')} disabled={noPuedeRegistrar}
-          style={{ padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
+          style={{ position:'relative',overflow:'hidden',padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
             color:noPuedeRegistrar?MUTED:AUSENTE,fontSize:14,fontWeight:700,cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          {destelloDe('tiro_atrapado')}
           Tiro atrapado
         </button>
       </div>
-
-      {set.rivalEnCancha?.embajadora && !estado.embajadoraRivalDentro && (
-        <button onClick={()=>ingresarEmbajadora('rival')} disabled={noPuedeRegistrar}
-          style={{ marginBottom:14,padding:'6px 12px',borderRadius:8,border:`1px dashed ${AUSENTE}`,background:'white',color:AUSENTE,fontSize:12,cursor:noPuedeRegistrar?'default':'pointer' }}>
-          Marcar: entró la embajadora rival
-        </button>
-      )}
 
       <div>
         <button onClick={()=>abrirCierre('tiempo_cumplido')} disabled={bloqueado}
