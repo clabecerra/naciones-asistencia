@@ -65,9 +65,7 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
       commit({ tipo:'lanzamiento', lanzadora:id, receptora:'RIVAL', resultado:'quemada', objetivoEmbajadora:false });
       return;
     }
-    if (tipoAccion === 'atraparonSuLanzamiento') {
-      commit({ tipo:'lanzamiento', lanzadora:id, receptora:'RIVAL', resultado:'recepcion' });
-    } else if (tipoAccion === 'laQuemaron') {
+    if (tipoAccion === 'laQuemaron') {
       commit({ tipo:'lanzamiento', lanzadora:'RIVAL', receptora:id, resultado:'quemada' });
     } else if (tipoAccion === 'atrapoRival') {
       commit({ tipo:'lanzamiento', lanzadora:'RIVAL', receptora:id, resultado:'recepcion' });
@@ -82,6 +80,15 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
   async function ingresarEmbajadora(equipo) {
     if (bloqueado) return;
     await commit({ tipo:'ingreso_embajadora', equipo });
+  }
+
+  // Grupales, de un solo toque, sin jugadora asociada -- ninguno cuesta
+  // vidas (setReducer.js las ignora, no son 'lanzamiento' con
+  // resultado:'quemada'). Reemplazan a "le atraparon el lanzamiento" como
+  // acción individual y agregan "pase incompleto", que no existía antes.
+  async function registrarGrupal(tipo) {
+    if (noPuedeRegistrar) return;
+    await commit({ tipo });
   }
 
   async function deshacer() {
@@ -270,6 +277,21 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
       </div>
       <p style={{ fontSize:11,color:MUTED,margin:'-8px 0 14px' }}>Gris y tachada: fuera, pero puede seguir quemando.</p>
 
+      {/* Grupales: un solo toque, sin elegir jugadora -- para no perder
+          el ritmo del juego. */}
+      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14,maxWidth:420 }}>
+        <button onClick={()=>registrarGrupal('pase_incompleto')} disabled={noPuedeRegistrar}
+          style={{ padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
+            color:noPuedeRegistrar?MUTED:AUSENTE,fontSize:14,fontWeight:700,cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          Pase incompleto
+        </button>
+        <button onClick={()=>registrarGrupal('tiro_atrapado')} disabled={noPuedeRegistrar}
+          style={{ padding:'14px 10px',borderRadius:10,border:`1px solid ${AUSENTE}`,background:noPuedeRegistrar?'#F5F4F1':'white',
+            color:noPuedeRegistrar?MUTED:AUSENTE,fontSize:14,fontWeight:700,cursor:noPuedeRegistrar?'default':'pointer',opacity:noPuedeRegistrar?0.6:1 }}>
+          Tiro atrapado
+        </button>
+      </div>
+
       {set.rivalEnCancha?.embajadora && !estado.embajadoraRivalDentro && (
         <button onClick={()=>ingresarEmbajadora('rival')} disabled={noPuedeRegistrar}
           style={{ marginBottom:14,padding:'6px 12px',borderRadius:8,border:`1px dashed ${AUSENTE}`,background:'white',color:AUSENTE,fontSize:12,cursor:noPuedeRegistrar?'default':'pointer' }}>
@@ -290,15 +312,16 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
           onClick={()=>setAccionJugadora(null)}>
           <div onClick={(e)=>e.stopPropagation()} style={{ background:'white',borderRadius:'16px 16px 0 0',padding:20,width:'100%',maxWidth:420 }}>
             <div style={{ fontSize:15,fontWeight:700,marginBottom:12 }}>{nombre(accionJugadora.id)}</div>
-            {/* Cada fila es el mismo verbo -- izquierda ella lo hizo (verde),
-                derecha se lo hicieron a ella (rojo). Quemar arriba, atrapar
-                abajo. La quemaron/atrapó necesitan estar en cancha. */}
-            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
+            {/* Quemar: izquierda ella lo hizo (verde), derecha se lo
+                hicieron (rojo). Atrapó, abajo, sola -- "le atraparon" se
+                sacó de acá, ahora es el grupal "Tiro atrapado" en la
+                pantalla principal. La quemaron/atrapó necesitan cancha. */}
+            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8 }}>
               <button onClick={()=>elegirAccion('quemoRival')} style={botonSheet(PRESENTE)}>Quemó</button>
               <button onClick={()=>elegirAccion('laQuemaron')} disabled={!accionJugadora.dentro} style={botonSheet(AUSENTE,!accionJugadora.dentro)}>La quemaron</button>
-              <button onClick={()=>elegirAccion('atrapoRival')} disabled={!accionJugadora.dentro} style={botonSheet(PRESENTE,!accionJugadora.dentro)}>Atrapó</button>
-              <button onClick={()=>elegirAccion('atraparonSuLanzamiento')} style={botonSheet(AUSENTE)}>Le atraparon</button>
             </div>
+            <button onClick={()=>elegirAccion('atrapoRival')} disabled={!accionJugadora.dentro}
+              style={{ ...botonSheet(PRESENTE,!accionJugadora.dentro), width:'100%' }}>Atrapó</button>
             <button onClick={()=>setAccionJugadora(null)} style={{ marginTop:12,border:'none',background:'none',color:MUTED,fontSize:13,cursor:'pointer' }}>Cancelar</button>
           </div>
         </div>
