@@ -7,6 +7,7 @@ import { tomarControl } from '../../utils/eventos';
 import { SeleccionPartido } from './SeleccionPartido';
 import { AlineacionSet } from './AlineacionSet';
 import { CapturaEnVivo } from './CapturaEnVivo';
+import { ResumenPartido } from './ResumenPartido';
 
 const CONTROL_STALE_MS = 3 * 60 * 60 * 1000; // 3h sin actividad: se asume perdido (batería, señal)
 
@@ -137,16 +138,8 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
       )}
       {fase.kind === 'resumen' && (
         <div style={{ background:'white',border:`1px solid ${LINE}`,borderRadius:12,padding:'20px 20px 24px' }}>
-          <h3 style={{ margin:'0 0 10px',fontSize:16,fontWeight:700 }}>Partido registrado</h3>
-          <p style={{ fontSize:13,color:INK,margin:'0 0 6px' }}>
-            Set 1: {partido.resultadoOficial?.['1']?.equipo ?? '—'} / {partido.resultadoOficial?.['1']?.rival ?? '—'}
-          </p>
-          <p style={{ fontSize:13,color:INK,margin:0 }}>
-            Set 2: {partido.resultadoOficial?.['2']?.equipo ?? '—'} / {partido.resultadoOficial?.['2']?.rival ?? '—'}
-          </p>
-          <p style={{ fontSize:12,color:MUTED,marginTop:14 }}>
-            Las estadísticas por partido y acumuladas llegan en la próxima entrega.
-          </p>
+          <h3 style={{ margin:'0 0 14px',fontSize:16,fontWeight:700 }}>Partido registrado</h3>
+          <ResumenPartido partidoId={partidoId} roster={roster} />
           <button onClick={volver} style={{ marginTop:14,padding:'8px 14px',borderRadius:8,border:'none',background:INK,color:PAPER,fontSize:13,cursor:'pointer' }}>
             Volver a la lista
           </button>

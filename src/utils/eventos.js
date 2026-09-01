@@ -1,5 +1,5 @@
 import {
-  doc, collection, writeBatch, query, orderBy,
+  doc, collection, writeBatch, query, orderBy, getDocs,
   getDocFromServer, getDocsFromServer, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -55,6 +55,46 @@ export async function tomarControl(partidoId, authUser) {
   batch.update(doc(db, 'partidos', partidoId), {
     capturando: { uid: authUser.uid, nombre: authUser.email || '', desde: Timestamp.now() },
   });
+  await batch.commit();
+}
+
+// Firestore no borra subcolecciones solas al borrar el documento padre --
+// sets/eventos quedarían huérfanos (inalcanzables desde la app, pero
+// vivos en la base) si solo se borrara partidos/{id}. Recorre y borra
+// todo explícito: eventos de cada set, cada set, y por último el
+// partido. Solo admin (ver firestore.rules: el delete abierto de eventos
+// sigue acotado al último evento de un set en_curso, para el deshacer en
+// vivo -- esto es una regla aparte, más amplia, solo para admin).
+//
+// Un solo writeBatch, no varias tandas: un batch es atómico (todo o nada,
+// también si se corta la conexión a mitad de camino, porque nada se envía
+// hasta el commit final), así que no puede quedar un partido a medio
+// borrar. El límite de Firestore es 500 operaciones por batch -- un
+// partido real (dos sets, un puñado de eventos cada uno) queda muy por
+// debajo; si algún día no cupiera, es mejor negarse con un error claro que
+// partirlo en varios batches no atómicos entre sí, que es exactamente el
+// escenario de "queda a medias" que se quiere evitar. Si esto llega a
+// fallar (red, permisos), no hay nada que limpiar: como no se mandó nada
+// hasta último momento, la base queda intacta y reintentar es seguro.
+export async function borrarPartidoCompleto(partidoId) {
+  const setsSnap = await getDocs(collection(db, 'partidos', partidoId, 'sets'));
+  const refsABorrar = [];
+  for (const setDoc of setsSnap.docs) {
+    const eventosSnap = await getDocs(collection(setDoc.ref, 'eventos'));
+    eventosSnap.docs.forEach((d) => refsABorrar.push(d.ref));
+    refsABorrar.push(setDoc.ref);
+  }
+  refsABorrar.push(doc(db, 'partidos', partidoId));
+
+  if (refsABorrar.length > 500) {
+    throw new Error(
+      `El partido tiene ${refsABorrar.length} documentos para borrar, más de los 500 que ` +
+      'admite un borrado atómico. No se borró nada -- hay que revisar este caso a mano.'
+    );
+  }
+
+  const batch = writeBatch(db);
+  refsABorrar.forEach((ref) => batch.delete(ref));
   await batch.commit();
 }
 

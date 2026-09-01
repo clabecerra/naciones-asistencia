@@ -5,6 +5,8 @@ import { db } from '../firebase';
 import { INK, PAPER, LINE, MUTED, PRESENTE, AUSENTE } from '../theme';
 import { dateKey, parseDateInput } from '../utils/fechas';
 import { nombrePartido } from '../utils/partidos';
+import { ResumenPartido } from './captura/ResumenPartido';
+import { borrarPartidoCompleto } from '../utils/eventos';
 
 export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
   const PARTIDO_VACIO = { competenciaId:'', fecha:'', lugar:'', tipo:'oficial', rival:'' };
@@ -18,6 +20,10 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
   const [nominaSeleccion, setNominaSeleccion]     = useState([]);
   const [nominaGuardando, setNominaGuardando]     = useState(false);
   const [nominaError, setNominaError]             = useState(null);
+  const [resumenAbiertoId, setResumenAbiertoId]   = useState(null);
+  const [eliminarConfirmId, setEliminarConfirmId] = useState(null);
+  const [eliminando, setEliminando]               = useState(false);
+  const [eliminarError, setEliminarError]         = useState(null);
 
   // Partidos (admin)
   useEffect(() => {
@@ -98,6 +104,21 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
     try {
       await updateDoc(doc(db,'partidos',p.id), { estado: p.estado==='suspendido' ? 'programado' : 'suspendido' });
     } catch (e) { setPartidosError('No se pudo actualizar el estado.'); }
+  }
+
+  async function confirmarEliminarPartido() {
+    if (!eliminarConfirmId) return;
+    setEliminando(true);
+    try {
+      await borrarPartidoCompleto(eliminarConfirmId);
+      setEliminarConfirmId(null);
+      setEliminarError(null);
+      if (resumenAbiertoId === eliminarConfirmId) setResumenAbiertoId(null);
+    } catch (e) {
+      // No cerrar la confirmación: un rechazo de permisos no puede verse
+      // igual que un borrado exitoso.
+      setEliminarError('No se pudo eliminar el partido. Intenta de nuevo.');
+    } finally { setEliminando(false); }
   }
 
   function nombreCompetencia(competenciaId) {
@@ -247,6 +268,46 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
                             {p.estado==='suspendido'?'Reactivar':'Suspender'}
                           </button>
+                          {p.estado==='jugado' && (
+                            <button onClick={()=>setResumenAbiertoId(resumenAbiertoId===p.id ? null : p.id)}
+                              style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
+                              Ver resumen
+                            </button>
+                          )}
+                          {/* Eliminar: la pestaña Partidos ya es solo-admin,
+                              pero se deja el chequeo explícito acá también —
+                              es la única acción irreversible de esta pantalla. */}
+                          {isAdmin && (
+                            <button onClick={()=>{ setEliminarConfirmId(p.id); setEliminarError(null); }}
+                              style={{ border:'none',background:'none',color:AUSENTE,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {resumenAbiertoId===p.id && (
+                      <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
+                        <ResumenPartido partidoId={p.id} roster={roster} />
+                      </div>
+                    )}
+
+                    {eliminarConfirmId===p.id && (
+                      <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
+                        <p style={{ fontSize:13,color:AUSENTE,fontWeight:600,margin:'0 0 10px' }}>
+                          Esto eliminará todos los datos asociados al partido (alineación, eventos, resultado).
+                          No se puede deshacer.
+                        </p>
+                        {eliminarError && <p style={{ fontSize:12,color:AUSENTE,margin:'0 0 10px' }}>{eliminarError}</p>}
+                        <div style={{ display:'flex',gap:8 }}>
+                          <button onClick={confirmarEliminarPartido} disabled={eliminando}
+                            style={{ padding:'7px 14px',borderRadius:6,border:'none',background:AUSENTE,color:'white',fontSize:12,
+                              cursor:eliminando?'default':'pointer',opacity:eliminando?0.7:1 }}>
+                            {eliminando ? 'Eliminando…' : 'Confirmar eliminación'}
+                          </button>
+                          <button onClick={()=>{ setEliminarConfirmId(null); setEliminarError(null); }} disabled={eliminando}
+                            style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12 }}>Cancelar</button>
                         </div>
                       </div>
                     )}
