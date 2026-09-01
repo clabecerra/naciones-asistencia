@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { useConnectionStatus } from '../../context/ConnectionStatus';
 import { INK, LINE, MUTED, AUSENTE } from '../../theme';
 import { nombrePartido } from '../../utils/partidos';
 
@@ -8,16 +9,18 @@ import { nombrePartido } from '../../utils/partidos';
 // internos (tipo: entrenamiento) necesitan la estructura de dos equipos
 // identificados que llega con el armado de equipos de la Etapa 3.
 export function SeleccionPartido({ onSeleccionar }) {
+  const { reportSnapshot, clearListener } = useConnectionStatus();
   const [partidos, setPartidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const q = query(collection(db,'partidos'), where('tipo','in',['oficial','amistoso']), orderBy('fecha','desc'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setPartidos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setError(null);
       setLoading(false);
+      reportSnapshot('seleccionPartido', snap.metadata);
     }, (err) => {
       // No mostrar como "sin partidos" -- un error de consulta se ve
       // exactamente igual que una lista vacía si no se distingue (mismo
@@ -30,7 +33,8 @@ export function SeleccionPartido({ onSeleccionar }) {
         : `No se pudo cargar la lista de partidos (${err.code || 'error desconocido'}). Intenta de nuevo.`);
       setLoading(false);
     });
-    return unsub;
+    return () => { unsub(); clearListener('seleccionPartido'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Un partido ya jugado no tiene nada más que capturar -- se saca de la

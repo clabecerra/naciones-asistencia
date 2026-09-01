@@ -9,6 +9,8 @@ import { db, auth } from './firebase';
 import { INK, PAPER, LINE, MUTED, PRESENTE, NAVY } from './theme';
 import { monthLabel } from './utils/fechas';
 import { LOGO_SVG } from './components/Logo';
+import { ConnectionStatusProvider, useConnectionStatus } from './context/ConnectionStatus';
+import { ConnectionBanner } from './components/ConnectionBanner';
 import { LoginScreen } from './components/LoginScreen';
 import { CrearMesTab } from './components/CrearMesTab';
 import { CompetenciasTab } from './components/CompetenciasTab';
@@ -21,6 +23,15 @@ const PROXIMOS_MIN = 6; // aviso admin si quedan menos entrenamientos programado
 
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────
 export default function AttendanceTracker() {
+  return (
+    <ConnectionStatusProvider>
+      <AttendanceTrackerInner />
+    </ConnectionStatusProvider>
+  );
+}
+
+function AttendanceTrackerInner() {
+  const { reportSnapshot, clearListener } = useConnectionStatus();
   const [authUser, setAuthUser]     = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin]       = useState(false);
@@ -66,7 +77,11 @@ export default function AttendanceTracker() {
     setRosterLoading(true);
     setRosterError(null);
     const q = query(collection(db,'jugadorasRoster'), where('activa','==',true));
-    const unsub = onSnapshot(q, (snap) => {
+    // includeMetadataChanges: sin esto, Firestore no vuelve a llamar al
+    // callback cuando lo único que cambia es fromCache (true -> false) y
+    // los documentos siguen siendo los mismos -- el banner de conexión se
+    // quedaría pegado en "sin sincronizar" para siempre.
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       // Por nombre primero, no apellido: la tabla de Registro muestra
       // "{nombre} {apellido}" y usa este orden tal cual, así que tiene que
@@ -75,6 +90,7 @@ export default function AttendanceTracker() {
       list.sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'') || (a.apellido||'').localeCompare(b.apellido||''));
       setRoster(list);
       setRosterLoading(false);
+      reportSnapshot('roster', snap.metadata);
     }, (err) => {
       // No mostrar como "sin jugadoras" — un permission-denied silencioso
       // se ve exactamente igual que una nómina vacía si no se distingue.
@@ -84,7 +100,8 @@ export default function AttendanceTracker() {
         : 'No se pudo cargar la nómina. Intenta de nuevo.');
       setRosterLoading(false);
     });
-    return unsub;
+    return () => { unsub(); clearListener('roster'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser]);
 
   // Entrenamientos del mes visible
@@ -97,15 +114,17 @@ export default function AttendanceTracker() {
       where('fecha','>=',Timestamp.fromDate(inicio)),
       where('fecha','<',Timestamp.fromDate(fin)),
       orderBy('fecha'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setEntrenamientos(snap.docs.map((d) => {
         const data = d.data();
         return { id: d.id, fecha: data.fecha.toDate(), estado: data.estado,
           bloqueaEn: data.bloqueaEn ? data.bloqueaEn.toDate() : null };
       }));
       setEntrenamientosLoading(false);
+      reportSnapshot('entrenamientos', snap.metadata);
     }, () => setEntrenamientosLoading(false));
-    return unsub;
+    return () => { unsub(); clearListener('entrenamientos'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, monthDate.getFullYear(), monthDate.getMonth()]);
 
   // Asistencia: un listener por entrenamiento visible.
@@ -117,13 +136,15 @@ export default function AttendanceTracker() {
     if (!authUser || entrenamientos.length === 0) { setAsistencia({}); return; }
     const unsubs = entrenamientos.map((ent) => onSnapshot(
       collection(db,'entrenamientos',ent.id,'asistencia'),
+      { includeMetadataChanges: true },
       (snap) => {
         const porJugadora = {};
         snap.forEach((d) => { porJugadora[d.id] = d.data(); });
         setAsistencia((prev) => ({ ...prev, [ent.id]: porJugadora }));
+        reportSnapshot(`asistencia:${ent.id}`, snap.metadata);
       }
     ));
-    return () => unsubs.forEach((u) => u());
+    return () => { unsubs.forEach((u) => u()); entrenamientos.forEach((ent) => clearListener(`asistencia:${ent.id}`)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, entrenamientoIds]);
 
@@ -132,10 +153,12 @@ export default function AttendanceTracker() {
     if (!isAdmin) { setProximosCount(null); return; }
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     const q = query(collection(db,'entrenamientos'), where('fecha','>=',Timestamp.fromDate(hoy)));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setProximosCount(snap.docs.filter((d) => d.data().estado !== 'suspendido').length);
+      reportSnapshot('proximos', snap.metadata);
     });
-    return unsub;
+    return () => { unsub(); clearListener('proximos'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // Competencias (admin)
@@ -143,11 +166,13 @@ export default function AttendanceTracker() {
     if (!isAdmin) { setCompetencias([]); return; }
     setCompetenciasLoading(true);
     const q = query(collection(db,'competencias'), orderBy('fechaInicio','desc'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setCompetencias(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setCompetenciasLoading(false);
+      reportSnapshot('competencias', snap.metadata);
     }, () => setCompetenciasLoading(false));
-    return unsub;
+    return () => { unsub(); clearListener('competencias'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // Barra de pestañas: señal de que hay más contenido a la derecha solo
@@ -224,6 +249,8 @@ export default function AttendanceTracker() {
               </button>
             </div>
           </div>
+
+          <ConnectionBanner />
 
           {isAdmin && proximosCount !== null && proximosCount < PROXIMOS_MIN && (
             <div style={{ background:'#FBF2E3', border:`1px solid #E8CFA0`, color:'#8A5A1E', borderRadius:10, padding:'8px 12px', fontSize:12, marginBottom:14 }}>

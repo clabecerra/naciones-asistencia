@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { useConnectionStatus } from '../../context/ConnectionStatus';
 import { INK, LINE, MUTED, PRESENTE, AUSENTE } from '../../theme';
 import { estadoDelSet } from '../../utils/setReducer';
 import { tallarEventos, jugadorasEnFormacion } from '../../utils/resumenPartido';
@@ -13,6 +14,7 @@ function mensajeErrorCarga(err, que) {
 }
 
 export function ResumenPartido({ partidoId, roster }) {
+  const { reportSnapshot, clearListener } = useConnectionStatus();
   const [partido, setPartido] = useState(null);
   const [sets, setSets] = useState({});
   const [eventosPorSet, setEventosPorSet] = useState({});
@@ -20,22 +22,26 @@ export function ResumenPartido({ partidoId, roster }) {
   const [verEventos, setVerEventos] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db,'partidos',partidoId), (snap) => {
+    const unsub = onSnapshot(doc(db,'partidos',partidoId), { includeMetadataChanges: true }, (snap) => {
       setPartido(snap.exists() ? { id: snap.id, ...snap.data() } : null);
       setError(null);
+      reportSnapshot('resumen:partido', snap.metadata);
     }, (err) => setError(mensajeErrorCarga(err, 'el partido')));
-    return unsub;
+    return () => { unsub(); clearListener('resumen:partido'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId]);
 
   useEffect(() => {
     const q = query(collection(db,'partidos',partidoId,'sets'), orderBy('__name__'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       const next = {};
       snap.forEach((d) => { next[d.id] = { id: d.id, ...d.data() }; });
       setSets(next);
       setError(null);
+      reportSnapshot('resumen:sets', snap.metadata);
     }, (err) => setError(mensajeErrorCarga(err, 'los sets del partido')));
-    return unsub;
+    return () => { unsub(); clearListener('resumen:sets'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId]);
 
   const setIds = Object.keys(sets).sort();
@@ -44,10 +50,14 @@ export function ResumenPartido({ partidoId, roster }) {
     if (setIds.length === 0) return;
     const unsubs = setIds.map((setId) => onSnapshot(
       query(collection(db,'partidos',partidoId,'sets',setId,'eventos'), orderBy('orden','asc')),
-      (snap) => setEventosPorSet((prev) => ({ ...prev, [setId]: snap.docs.map((d) => ({ id: d.id, ...d.data() })) })),
+      { includeMetadataChanges: true },
+      (snap) => {
+        setEventosPorSet((prev) => ({ ...prev, [setId]: snap.docs.map((d) => ({ id: d.id, ...d.data() })) }));
+        reportSnapshot(`resumen:eventos:${setId}`, snap.metadata);
+      },
       (err) => setError(mensajeErrorCarga(err, 'los eventos del partido'))
     ));
-    return () => unsubs.forEach((u) => u());
+    return () => { unsubs.forEach((u) => u()); setIds.forEach((setId) => clearListener(`resumen:eventos:${setId}`)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId, setIdsKey]);
 

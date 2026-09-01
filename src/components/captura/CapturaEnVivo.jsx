@@ -16,7 +16,7 @@ function mensajeError(e, accion) {
   return accion === 'deshacer' ? 'No se pudo deshacer la jugada.' : 'No se pudo registrar la jugada.';
 }
 
-export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, puedeEditar }) {
+export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, puedeEditar, hayEscriturasPendientes }) {
   const [accionJugadora, setAccionJugadora] = useState(null); // { id, dentro }
   const [pendienteEmbRival, setPendienteEmbRival] = useState(null); // jugadoraId en espera del toggle
   const [escribiendo, setEscribiendo] = useState(false);
@@ -290,9 +290,21 @@ export function CapturaEnVivo({ partidoId, n, set, eventos, roster, authUser, pu
 
       {/* Indicador permanente: qué fue lo último registrado, para saber
           dónde se quedó sin tener que haber estado mirando la pantalla. */}
-      {ultimaAccion && (
-        <div style={{ fontSize:12,color:MUTED,marginBottom:10 }}>
-          Última: <strong style={{ color:INK }}>{ultimaAccion.texto}</strong>
+      {(ultimaAccion || hayEscriturasPendientes) && (
+        <div style={{ display:'flex',alignItems:'center',gap:8,fontSize:12,color:MUTED,marginBottom:10 }}>
+          {ultimaAccion && <span>Última: <strong style={{ color:INK }}>{ultimaAccion.texto}</strong></span>}
+          {/* Discreto a propósito: no es un error ni bloquea nada, solo
+              informa que la jugada quedó en cola. No depende de
+              ultimaAccion (ese estado se pierde si se recarga la página,
+              las escrituras pendientes no) y no debe competir con el
+              destello de cada botón (ver marcarFeedback), por eso vive acá
+              y no sobre el tablero. */}
+          {hayEscriturasPendientes && (
+            <span style={{ display:'flex',alignItems:'center',gap:4,color:'#8A5A1E' }}>
+              <span style={{ width:6,height:6,borderRadius:'50%',background:'#8A5A1E',flexShrink:0 }} />
+              Sincronizando…
+            </span>
+          )}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // ─── CONFIGURACIÓN FIREBASE ────────────────────────────────────────────────
@@ -18,5 +18,12 @@ const firebaseConfig = {
 // ──────────────────────────────────────────────────────────────────────────
 
 export const app  = initializeApp(firebaseConfig);
-export const db   = initializeFirestore(app, { experimentalAutoDetectLongPolling: true, useFetchStreams: false });
+export const db   = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false,
+  // Multi-pestaña porque en el trabajo administrativo (a diferencia del
+  // gimnasio, que es una tablet con una sola pestaña) es normal tener dos
+  // pestañas de la app abiertas a la vez.
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 export const auth = getAuth(app);

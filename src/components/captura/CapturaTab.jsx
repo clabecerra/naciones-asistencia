@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { useConnectionStatus } from '../../context/ConnectionStatus';
 import { INK, PAPER, LINE, MUTED, AUSENTE } from '../../theme';
 import { nombrePartido } from '../../utils/partidos';
 import { tomarControl } from '../../utils/eventos';
@@ -23,33 +24,44 @@ function mensajeErrorCarga(err, que) {
 }
 
 export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUser }) {
+  const { reportSnapshot, clearListener } = useConnectionStatus();
   const [partidoId, setPartidoId] = useState(partidoIdInicial || null);
   const [partido, setPartido] = useState(null);
   const [sets, setSets] = useState({});
   const [reclamando, setReclamando] = useState(false);
   const [errorCarga, setErrorCarga] = useState(null);
+  // Escrituras sin confirmar por el servidor -- se muestra solo en captura,
+  // aparte del banner global, porque acá es donde importa saber si una
+  // jugada ya salió o sigue en cola (ver hasPendingWritesSets/Eventos).
+  const [pendienteSets, setPendienteSets] = useState(false);
+  const [pendienteEventos, setPendienteEventos] = useState(false);
 
   useEffect(() => { setPartidoId(partidoIdInicial || null); }, [partidoIdInicial]);
 
   useEffect(() => {
     if (!partidoId) { setPartido(null); return; }
-    const unsub = onSnapshot(doc(db,'partidos',partidoId), (snap) => {
+    const unsub = onSnapshot(doc(db,'partidos',partidoId), { includeMetadataChanges: true }, (snap) => {
       setPartido(snap.exists() ? { id: snap.id, ...snap.data() } : null);
       setErrorCarga(null);
+      reportSnapshot('captura:partido', snap.metadata);
     }, (err) => setErrorCarga(mensajeErrorCarga(err, 'el partido')));
-    return unsub;
+    return () => { unsub(); clearListener('captura:partido'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId]);
 
   useEffect(() => {
     if (!partidoId) { setSets({}); return; }
     const q = query(collection(db,'partidos',partidoId,'sets'), orderBy('__name__'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       const next = {};
       snap.forEach((d) => { next[d.id] = { id: d.id, ...d.data() }; });
       setSets(next);
       setErrorCarga(null);
+      reportSnapshot('captura:sets', snap.metadata);
+      setPendienteSets(snap.metadata.hasPendingWrites);
     }, (err) => setErrorCarga(mensajeErrorCarga(err, 'los sets del partido')));
-    return unsub;
+    return () => { unsub(); clearListener('captura:sets'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId]);
 
   const fase = useMemo(() => {
@@ -89,11 +101,18 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
   useEffect(() => {
     if (fase?.kind !== 'captura') { setEventos([]); return; }
     const q = query(collection(db,'partidos',partidoId,'sets',fase.n,'eventos'), orderBy('orden','asc'));
-    const unsub = onSnapshot(q, (snap) => {
+    // includeMetadataChanges: sin esto, el toggle de hasPendingWrites a
+    // false (jugada ya sincronizada) no dispara el callback si nadie más
+    // tocó la colección mientras tanto -- "Sincronizando…" quedaría
+    // pegado.
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setEventos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setErrorCarga(null);
+      reportSnapshot('captura:eventos', snap.metadata);
+      setPendienteEventos(snap.metadata.hasPendingWrites);
     }, (err) => setErrorCarga(mensajeErrorCarga(err, 'los eventos del set')));
-    return unsub;
+    return () => { unsub(); clearListener('captura:eventos'); setPendienteEventos(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partidoId, fase?.kind, fase?.n]);
 
   if (!partidoId) {
@@ -134,7 +153,8 @@ export function CapturaTab({ partidoIdInicial, onCambiarPartido, roster, authUse
           setAnterior={fase.n === '2' ? sets['1'] : undefined} />
       )}
       {fase.kind === 'captura' && (
-        <CapturaEnVivo partidoId={partidoId} n={fase.n} set={fase.set} eventos={eventos} roster={roster} authUser={authUser} puedeEditar={tieneControl} />
+        <CapturaEnVivo partidoId={partidoId} n={fase.n} set={fase.set} eventos={eventos} roster={roster} authUser={authUser} puedeEditar={tieneControl}
+          hayEscriturasPendientes={pendienteSets || pendienteEventos} />
       )}
       {fase.kind === 'resumen' && (
         <div style={{ background:'white',border:`1px solid ${LINE}`,borderRadius:12,padding:'20px 20px 24px' }}>

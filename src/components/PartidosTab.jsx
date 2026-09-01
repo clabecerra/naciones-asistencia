@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, doc, addDoc, updateDoc, deleteField, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useConnectionStatus } from '../context/ConnectionStatus';
 import { INK, PAPER, LINE, MUTED, PRESENTE, AUSENTE } from '../theme';
 import { dateKey, parseDateInput } from '../utils/fechas';
 import { nombrePartido } from '../utils/partidos';
@@ -9,6 +10,7 @@ import { ResumenPartido } from './captura/ResumenPartido';
 import { borrarPartidoCompleto } from '../utils/eventos';
 
 export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
+  const { reportSnapshot, clearListener } = useConnectionStatus();
   const PARTIDO_VACIO = { competenciaId:'', fecha:'', lugar:'', tipo:'oficial', rival:'' };
   const [partidos, setPartidos]                   = useState([]);
   const [partidosLoading, setPartidosLoading]     = useState(true);
@@ -30,11 +32,13 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
     if (!isAdmin) { setPartidos([]); return; }
     setPartidosLoading(true);
     const q = query(collection(db,'partidos'), orderBy('fecha','asc'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
       setPartidos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setPartidosLoading(false);
+      reportSnapshot('partidos', snap.metadata);
     }, () => setPartidosLoading(false));
-    return unsub;
+    return () => { unsub(); clearListener('partidos'); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // Un oficial sin competencia queda fuera de los acumulados; un
