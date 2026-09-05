@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Editor/tooling config, local a cada máquina
+.claude/
