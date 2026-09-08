@@ -5,11 +5,21 @@ import { db } from '../firebase';
 import { INK, PAPER, LINE, MUTED, PRESENTE, AUSENTE } from '../theme';
 import { dateKey, parseDateInput } from '../utils/fechas';
 
-export function CompetenciasTab({ competencias, competenciasLoading }) {
+export function CompetenciasTab({ competencias, competenciasLoading, roster }) {
   const [competenciasError, setCompetenciasError] = useState(null);
   const [nuevaComp, setNuevaComp]                 = useState({ nombre:'', fechaInicio:'', fechaTermino:'' });
   const [compEditandoId, setCompEditandoId]       = useState(null);
   const [compEdicion, setCompEdicion]             = useState({ nombre:'', fechaInicio:'', fechaTermino:'' });
+  // Inscritas usa selección local + Guardar, a diferencia de nómina y
+  // disponibilidad -- acá se marcan veinte o treinta jugadoras seguidas de
+  // una vez (inscripción del torneo), y con escritura por casillero un
+  // corte de señal a mitad de camino deja una lista incompleta sin que
+  // nadie lo note. Nómina y disponibilidad cambian de a una o dos, ahí sí
+  // conviene el guardado inmediato.
+  const [inscritasAbiertaId, setInscritasAbiertaId] = useState(null);
+  const [inscritasSeleccion, setInscritasSeleccion] = useState([]);
+  const [inscritasGuardando, setInscritasGuardando] = useState(false);
+  const [inscritasError, setInscritasError]         = useState(null);
 
   async function crearCompetencia() {
     const nombre = nuevaComp.nombre.trim();
@@ -62,6 +72,30 @@ export function CompetenciasTab({ competencias, competenciasLoading }) {
     try {
       await updateDoc(doc(db,'competencias',c.id), { estado: c.estado==='cerrada' ? 'activa' : 'cerrada' });
     } catch (e) { setCompetenciasError('No se pudo actualizar el estado.'); }
+  }
+
+  function alternarInscritas(c) {
+    if (inscritasAbiertaId === c.id) { setInscritasAbiertaId(null); return; }
+    setInscritasAbiertaId(c.id);
+    setInscritasSeleccion(c.inscritas || []);
+    setInscritasError(null);
+  }
+
+  function toggleInscrita(uid) {
+    setInscritasSeleccion((prev) => prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]);
+  }
+
+  async function guardarInscritas() {
+    setInscritasGuardando(true);
+    try {
+      await updateDoc(doc(db,'competencias',inscritasAbiertaId), { inscritas: inscritasSeleccion });
+      setInscritasAbiertaId(null);
+      setInscritasError(null);
+    } catch (e) {
+      // No cerrar el panel: un rechazo de permisos no puede verse igual
+      // que un guardado exitoso.
+      setInscritasError('No se pudo guardar la lista. Intenta de nuevo.');
+    } finally { setInscritasGuardando(false); }
   }
 
   return (
@@ -118,10 +152,43 @@ export function CompetenciasTab({ competencias, competenciasLoading }) {
                         <div style={{ display:'flex',gap:10 }}>
                           <button onClick={()=>empezarEdicionCompetencia(c)}
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>Editar</button>
+                          <button onClick={()=>alternarInscritas(c)}
+                            style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
+                            Inscritas{c.inscritas ? ` (${c.inscritas.length})` : ''}
+                          </button>
                           <button onClick={()=>alternarCierreCompetencia(c)}
                             style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12,textDecoration:'underline' }}>
                             {c.estado==='cerrada'?'Reabrir':'Cerrar'}
                           </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {inscritasAbiertaId===c.id && (
+                      <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
+                        <p style={{ margin:'0 0 8px',fontSize:12,color:MUTED }}>
+                          Cupo fijo de esta competencia. Si queda vacía, la disponibilidad y la nómina de sus partidos oficiales se arman sobre el roster completo, como hoy.
+                        </p>
+                        <div style={{ maxHeight:260,overflowY:'auto',border:`1px solid ${LINE}`,borderRadius:8,padding:'8px 12px' }}>
+                          {roster
+                            .slice()
+                            .sort((a,b) => (a.nombre||'').localeCompare(b.nombre||'') || (a.apellido||'').localeCompare(b.apellido||''))
+                            .map((j) => (
+                              <label key={j.id} style={{ display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:13,cursor:'pointer' }}>
+                                <input type="checkbox" checked={inscritasSeleccion.includes(j.id)} onChange={()=>toggleInscrita(j.id)} />
+                                {j.nombre} {j.apellido}
+                              </label>
+                            ))}
+                        </div>
+                        {inscritasError && <p style={{ fontSize:12,color:AUSENTE,margin:'8px 0 0' }}>{inscritasError}</p>}
+                        <div style={{ display:'flex',gap:8,marginTop:10 }}>
+                          <button onClick={guardarInscritas} disabled={inscritasGuardando}
+                            style={{ padding:'7px 14px',borderRadius:6,border:'none',background:INK,color:'white',fontSize:12,
+                              cursor:inscritasGuardando?'default':'pointer',opacity:inscritasGuardando?0.7:1 }}>
+                            {inscritasGuardando?'Guardando…':'Guardar'}
+                          </button>
+                          <button onClick={()=>setInscritasAbiertaId(null)} disabled={inscritasGuardando}
+                            style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12 }}>Cancelar</button>
                         </div>
                       </div>
                     )}

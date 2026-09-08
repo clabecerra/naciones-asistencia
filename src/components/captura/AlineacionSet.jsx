@@ -20,13 +20,20 @@ export function AlineacionSet({ partidoId, n, partido, roster, puedeEditar, setA
 
   // Set 2 arranca con la misma alineación del set 1, como punto de partida
   // editable -- rara vez cambia entera de un set a otro, y así se evita
-  // repetir todo el armado a mano.
+  // repetir todo el armado a mano. El set 1, si no hay setAnterior, arranca
+  // con la formación previa (PartidosTab, paso anterior a la captura) si
+  // se cargó -- mismo patrón, sigue totalmente editable antes de confirmar.
+  const previa = partido.formacionPrevia;
   const [alineacion, setAlineacion] = useState(() => ({
     ...Object.fromEntries(CASILLAS.map((c) => [c, ''])),
-    ...(setAnterior?.alineacion || {}),
+    ...(setAnterior?.alineacion || previa?.alineacion || {}),
   }));
-  const [embajadoraId, setEmbajadoraId] = useState(() => setAnterior?.embajadoraId || '');
+  const [embajadoraId, setEmbajadoraId] = useState(() => setAnterior?.embajadoraId || previa?.embajadoraId || '');
   const [rivalPresentes, setRivalPresentes] = useState(() => { // total, incluida su embajadora
+    // Cuántas presenta el rival se pregunta en cada set, no en la
+    // formación previa: es un hecho del día del partido, y puede cambiar
+    // de un set a otro. El set 2 arranca con el valor del set 1 como punto
+    // de partida editable, igual que la alineación.
     const presentesAnterior = setAnterior?.rivalEnCancha?.presentes;
     return presentesAnterior != null ? presentesAnterior + 1 : 10;
   });

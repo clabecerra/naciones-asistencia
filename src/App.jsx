@@ -16,6 +16,7 @@ import { CrearMesTab } from './components/CrearMesTab';
 import { CompetenciasTab } from './components/CompetenciasTab';
 import { PartidosTab } from './components/PartidosTab';
 import { EstadisticasTab } from './components/EstadisticasTab';
+import { EstadisticasJuegoTab } from './components/EstadisticasJuegoTab';
 import { RegistroTab } from './components/RegistroTab';
 import { CapturaTab } from './components/captura/CapturaTab';
 
@@ -35,6 +36,9 @@ function AttendanceTrackerInner() {
   const [authUser, setAuthUser]     = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin]       = useState(false);
+  // admins/{uid}.rol === 'dt' -- informativo, no cambia ningún permiso de
+  // Firestore, solo qué pestañas le muestra esta pantalla.
+  const [esDT, setEsDT]             = useState(false);
 
   const [roster, setRoster]               = useState([]);
   const [rosterLoading, setRosterLoading] = useState(true);
@@ -57,10 +61,14 @@ function AttendanceTrackerInner() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
-        try { setIsAdmin((await getDoc(doc(db,'admins',user.uid))).exists()); }
-        catch { setIsAdmin(false); }
+        try {
+          const adminSnap = await getDoc(doc(db,'admins',user.uid));
+          setIsAdmin(adminSnap.exists());
+          setEsDT(adminSnap.exists() && adminSnap.data()?.rol === 'dt');
+        } catch { setIsAdmin(false); setEsDT(false); }
       } else {
         setIsAdmin(false);
+        setEsDT(false);
       }
       setAuthChecked(true);
     });
@@ -211,11 +219,16 @@ function AttendanceTrackerInner() {
 
   // "captura" queda visible para cualquiera autenticada, no solo admin:
   // quien registra en la banca durante un partido no siempre tiene cuenta
-  // de administradora (ver PLAN.md, Etapa 2).
-  const tabs = isAdmin
-    ? ['registro','estadisticas','crearMes','competencias','partidos','captura']
-    : ['registro','estadisticas','captura'];
-  const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', partidos:'Partidos', crearMes:'Crear mes de asistencia', captura:'Captura en vivo' };
+  // de administradora (ver PLAN.md, Etapa 2). El DT no ve Crear mes ni
+  // Competencias -- son tareas de administradora, no de su rol -- pero
+  // sigue siendo isAdmin=true para todo lo demás (nómina, disponibilidad,
+  // formación, eliminar partido): eso sigue sin restricción entre roles.
+  const tabs = !isAdmin
+    ? ['registro','estadisticas','captura']
+    : esDT
+      ? ['registro','estadisticas','partidos','estadisticasJuego','captura']
+      : ['registro','estadisticas','crearMes','competencias','partidos','estadisticasJuego','captura'];
+  const tabLabel = { registro:'Registro de asistencia', estadisticas:'Estadísticas de asistencia', competencias:'Competencias', partidos:'Partidos', estadisticasJuego:'Estadísticas de juego', crearMes:'Crear mes de asistencia', captura:'Captura en vivo' };
 
   return (
     <div style={{ background: PAPER, minHeight: '100vh', color: INK, fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
@@ -242,7 +255,7 @@ function AttendanceTrackerInner() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: MUTED }}>{authUser.email}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {isAdmin && <div style={{ display:'flex',alignItems:'center',gap:5,fontSize:11,color:PRESENTE }}><Lock size={11}/> Sesión administradora</div>}
+              {isAdmin && <div style={{ display:'flex',alignItems:'center',gap:5,fontSize:11,color:PRESENTE }}><Lock size={11}/> {esDT ? 'Sesión DT' : 'Sesión administradora'}</div>}
               <button onClick={()=>signOut(auth)}
                 style={{ display:'flex',alignItems:'center',gap:4,border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:11,textDecoration:'underline',padding:0 }}>
                 <LogOut size={11}/> Cerrar sesión
@@ -300,13 +313,18 @@ function AttendanceTrackerInner() {
         )}
 
         {/* COMPETENCIAS */}
-        {activeTab==='competencias' && isAdmin && (
-          <CompetenciasTab competencias={competencias} competenciasLoading={competenciasLoading} />
+        {activeTab==='competencias' && isAdmin && !esDT && (
+          <CompetenciasTab competencias={competencias} competenciasLoading={competenciasLoading} roster={roster} />
         )}
 
         {/* PARTIDOS */}
         {activeTab==='partidos' && isAdmin && (
           <PartidosTab isAdmin={isAdmin} authUser={authUser} competencias={competencias} roster={roster} />
+        )}
+
+        {/* ESTADÍSTICAS DE JUEGO */}
+        {activeTab==='estadisticasJuego' && isAdmin && (
+          <EstadisticasJuegoTab roster={roster} competencias={competencias} />
         )}
 
         {/* CAPTURA EN VIVO */}
@@ -316,7 +334,7 @@ function AttendanceTrackerInner() {
         )}
 
         {/* CREAR NUEVO MES */}
-        {activeTab==='crearMes' && isAdmin && (
+        {activeTab==='crearMes' && isAdmin && !esDT && (
           <CrearMesTab isAdmin={isAdmin} authUser={authUser} />
         )}
       </div>
