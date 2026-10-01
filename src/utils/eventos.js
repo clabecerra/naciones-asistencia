@@ -1,8 +1,29 @@
 import {
   doc, collection, writeBatch, query, orderBy, getDocs,
-  getDocFromServer, getDocsFromServer, Timestamp,
+  getDocFromServer, getDocsFromServer, updateDoc, deleteField, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+
+// Soft delete: "Eliminar" en Partidos marca el documento en vez de
+// borrarlo -- un error (como borrar de un tirón datos de prueba y de paso
+// un partido real) deja de ser irreversible. El borrado real
+// (borrarPartidoCompleto, más abajo) queda como segundo paso explícito,
+// desde la Papelera.
+export async function marcarEliminado(partidoId, uid) {
+  await updateDoc(doc(db, 'partidos', partidoId), {
+    eliminado: true,
+    eliminadoEn: Timestamp.now(),
+    eliminadoPor: uid,
+  });
+}
+
+export async function restaurarPartido(partidoId) {
+  await updateDoc(doc(db, 'partidos', partidoId), {
+    eliminado: deleteField(),
+    eliminadoEn: deleteField(),
+    eliminadoPor: deleteField(),
+  });
+}
 
 export function setRef(partidoId, setId) {
   return doc(db, 'partidos', partidoId, 'sets', setId);

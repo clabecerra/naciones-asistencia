@@ -8,7 +8,7 @@ import { dateKey, parseDateInput } from '../utils/fechas';
 import { nombrePartido } from '../utils/partidos';
 import { DisponibilidadPanel } from './DisponibilidadPanel';
 import { FormacionPreviaPanel } from './FormacionPreviaPanel';
-import { borrarPartidoCompleto } from '../utils/eventos';
+import { borrarPartidoCompleto, marcarEliminado, restaurarPartido } from '../utils/eventos';
 import { estaEnFormacion } from '../utils/formacion';
 
 export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
@@ -30,6 +30,12 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
   const [eliminarConfirmId, setEliminarConfirmId] = useState(null);
   const [eliminando, setEliminando]               = useState(false);
   const [eliminarError, setEliminarError]         = useState(null);
+  // Papelera: partidos con eliminado:true (soft delete, ver utils/eventos.js).
+  const [papeleraAbierta, setPapeleraAbierta]     = useState(false);
+  const [restaurarError, setRestaurarError]       = useState(null);
+  const [borrarDefConfirmId, setBorrarDefConfirmId] = useState(null);
+  const [borrarDefLoading, setBorrarDefLoading]   = useState(false);
+  const [borrarDefError, setBorrarDefError]       = useState(null);
 
   // Partidos (admin)
   useEffect(() => {
@@ -134,14 +140,35 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
     if (!eliminarConfirmId) return;
     setEliminando(true);
     try {
-      await borrarPartidoCompleto(eliminarConfirmId);
+      await marcarEliminado(eliminarConfirmId, authUser.uid);
       setEliminarConfirmId(null);
       setEliminarError(null);
     } catch (e) {
       // No cerrar la confirmación: un rechazo de permisos no puede verse
-      // igual que un borrado exitoso.
+      // igual que un guardado exitoso.
       setEliminarError('No se pudo eliminar el partido. Intenta de nuevo.');
     } finally { setEliminando(false); }
+  }
+
+  async function restaurar(p) {
+    try {
+      await restaurarPartido(p.id);
+      setRestaurarError(null);
+    } catch (e) {
+      setRestaurarError('No se pudo restaurar el partido. Intenta de nuevo.');
+    }
+  }
+
+  async function confirmarBorrarDefinitivo() {
+    if (!borrarDefConfirmId) return;
+    setBorrarDefLoading(true);
+    try {
+      await borrarPartidoCompleto(borrarDefConfirmId);
+      setBorrarDefConfirmId(null);
+      setBorrarDefError(null);
+    } catch (e) {
+      setBorrarDefError('No se pudo eliminar el partido. Intenta de nuevo.');
+    } finally { setBorrarDefLoading(false); }
   }
 
   function nombreCompetencia(competenciaId) {
@@ -223,6 +250,9 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
   };
   const linkStyle = { border:'none', background:'none', color:MUTED, cursor:'pointer', fontSize:12, textDecoration:'underline' };
 
+  const partidosVisibles = partidos.filter((p) => !p.eliminado);
+  const partidosEliminados = partidos.filter((p) => p.eliminado);
+
   return (
           <div style={{ background:'white',border:`1px solid ${LINE}`,borderRadius:12,padding:'20px 20px 24px' }}>
             <h3 style={{ margin:'0 0 14px',fontSize:16,fontWeight:700 }}>Nuevo partido</h3>
@@ -263,11 +293,11 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
             <h3 style={{ margin:'20px 0 10px',fontSize:16,fontWeight:700 }}>Partidos</h3>
             {partidosLoading ? (
               <div style={{ color:MUTED,fontSize:13,padding:'12px 0' }}>Cargando…</div>
-            ) : partidos.length === 0 ? (
+            ) : partidosVisibles.length === 0 ? (
               <div style={{ color:MUTED,fontSize:13,padding:'12px 0' }}>Todavía no hay ninguno.</div>
             ) : (
               <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
-                {partidos.map((p) => (
+                {partidosVisibles.map((p) => (
                   <div key={p.id} style={{ border:`1px solid ${LINE}`,borderRadius:8,padding:'10px 14px' }}>
                     {partidoEditandoId === p.id ? (
                       <div style={{ display:'flex',flexWrap:'wrap',gap:8,alignItems:'center' }}>
@@ -360,8 +390,8 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                     {eliminarConfirmId===p.id && (
                       <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
                         <p style={{ fontSize:13,color:AUSENTE,fontWeight:600,margin:'0 0 10px' }}>
-                          Esto eliminará todos los datos asociados al partido (alineación, eventos, resultado).
-                          No se puede deshacer.
+                          El partido pasa a la Papelera y deja de verse acá. No se borra nada todavía — se puede
+                          restaurar desde la Papelera.
                         </p>
                         {eliminarError && <p style={{ fontSize:12,color:AUSENTE,margin:'0 0 10px' }}>{eliminarError}</p>}
                         <div style={{ display:'flex',gap:8 }}>
@@ -482,6 +512,52 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                   </div>
                 ))}
               </div>
+            )}
+
+            {partidosEliminados.length > 0 && (
+              <>
+                <button onClick={()=>setPapeleraAbierta((v)=>!v)}
+                  style={{ ...linkStyle, margin:'20px 0 10px', display:'block' }}>
+                  {papeleraAbierta ? 'Ocultar' : 'Ver'} papelera ({partidosEliminados.length})
+                </button>
+                {papeleraAbierta && (
+                  <div style={{ display:'flex',flexDirection:'column',gap:8 }}>
+                    {restaurarError && <p style={{ fontSize:12,color:AUSENTE,margin:'0 0 8px' }}>{restaurarError}</p>}
+                    {partidosEliminados.map((p) => (
+                      <div key={p.id} style={{ border:`1px solid ${LINE}`,borderRadius:8,padding:'10px 14px' }}>
+                        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8 }}>
+                          <span style={{ fontWeight:600,fontSize:14,color:MUTED }}>{nombrePartido(p)}</span>
+                          <div style={{ display:'flex',gap:10 }}>
+                            <button onClick={()=>restaurar(p)} style={linkStyle}>Restaurar</button>
+                            <button onClick={()=>{ setBorrarDefConfirmId(p.id); setBorrarDefError(null); }}
+                              style={{ ...linkStyle, color:AUSENTE }}>
+                              Eliminar definitivamente
+                            </button>
+                          </div>
+                        </div>
+                        {borrarDefConfirmId===p.id && (
+                          <div style={{ marginTop:12,paddingTop:12,borderTop:`1px solid ${LINE}` }}>
+                            <p style={{ fontSize:13,color:AUSENTE,fontWeight:600,margin:'0 0 10px' }}>
+                              Esto sí borra todos los datos asociados al partido (alineación, eventos, resultado).
+                              No se puede deshacer.
+                            </p>
+                            {borrarDefError && <p style={{ fontSize:12,color:AUSENTE,margin:'0 0 10px' }}>{borrarDefError}</p>}
+                            <div style={{ display:'flex',gap:8 }}>
+                              <button onClick={confirmarBorrarDefinitivo} disabled={borrarDefLoading}
+                                style={{ padding:'7px 14px',borderRadius:6,border:'none',background:AUSENTE,color:'white',fontSize:12,
+                                  cursor:borrarDefLoading?'default':'pointer',opacity:borrarDefLoading?0.7:1 }}>
+                                {borrarDefLoading ? 'Eliminando…' : 'Confirmar eliminación definitiva'}
+                              </button>
+                              <button onClick={()=>{ setBorrarDefConfirmId(null); setBorrarDefError(null); }} disabled={borrarDefLoading}
+                                style={{ border:'none',background:'none',color:MUTED,cursor:'pointer',fontSize:12 }}>Cancelar</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
   );

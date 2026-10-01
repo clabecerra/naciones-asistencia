@@ -19,7 +19,7 @@ export function EstadisticasJuegoTab({ roster, competencias }) {
     setLoading(true);
     const q = query(collection(db,'partidos'), orderBy('fecha','desc'));
     const unsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
-      const jugados = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => p.estado === 'jugado');
+      const jugados = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => p.estado === 'jugado' && !p.eliminado);
       setPartidos(jugados);
       setLoading(false);
       reportSnapshot('estadisticasJuego:partidos', snap.metadata);

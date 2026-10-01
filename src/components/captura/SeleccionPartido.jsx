@@ -37,9 +37,10 @@ export function SeleccionPartido({ onSeleccionar }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Un partido ya jugado no tiene nada más que capturar -- se saca de la
-  // lista acá.
-  const disponibles = partidos.filter((p) => p.estado !== 'suspendido' && p.estado !== 'jugado' && (p.nomina||[]).length > 0);
+  // Un partido ya jugado no tiene nada más que capturar, y uno eliminado
+  // (soft delete, ver utils/eventos.js) no debe poder reabrirse por error
+  // -- ambos se sacan de la lista acá.
+  const disponibles = partidos.filter((p) => p.estado !== 'suspendido' && p.estado !== 'jugado' && !p.eliminado && (p.nomina||[]).length > 0);
 
   return (
     <div style={{ background:'white',border:`1px solid ${LINE}`,borderRadius:12,padding:'20px 20px 24px' }}>
