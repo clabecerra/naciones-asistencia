@@ -11,7 +11,7 @@ import { FormacionPreviaPanel } from './FormacionPreviaPanel';
 import { borrarPartidoCompleto, marcarEliminado, restaurarPartido } from '../utils/eventos';
 import { estaEnFormacion } from '../utils/formacion';
 
-export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
+export function PartidosTab({ isAdmin, esDT, authUser, competencias, roster }) {
   const { reportSnapshot, clearListener } = useConnectionStatus();
   const PARTIDO_VACIO = { competenciaId:'', fecha:'', lugar:'', tipo:'oficial', rival:'' };
   const [partidos, setPartidos]                   = useState([]);
@@ -529,10 +529,14 @@ export function PartidosTab({ isAdmin, authUser, competencias, roster }) {
                           <span style={{ fontWeight:600,fontSize:14,color:MUTED }}>{nombrePartido(p)}</span>
                           <div style={{ display:'flex',gap:10 }}>
                             <button onClick={()=>restaurar(p)} style={linkStyle}>Restaurar</button>
-                            <button onClick={()=>{ setBorrarDefConfirmId(p.id); setBorrarDefError(null); }}
-                              style={{ ...linkStyle, color:AUSENTE }}>
-                              Eliminar definitivamente
-                            </button>
+                            {/* Solo interfaz, igual que el resto de la restricción de DT: la única
+                                acción sin vuelta atrás de esta pantalla queda reservada a administradora. */}
+                            {!esDT && (
+                              <button onClick={()=>{ setBorrarDefConfirmId(p.id); setBorrarDefError(null); }}
+                                style={{ ...linkStyle, color:AUSENTE }}>
+                                Eliminar definitivamente
+                              </button>
+                            )}
                           </div>
                         </div>
                         {borrarDefConfirmId===p.id && (

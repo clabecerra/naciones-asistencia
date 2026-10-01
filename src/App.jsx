@@ -319,7 +319,7 @@ function AttendanceTrackerInner() {
 
         {/* PARTIDOS */}
         {activeTab==='partidos' && isAdmin && (
-          <PartidosTab isAdmin={isAdmin} authUser={authUser} competencias={competencias} roster={roster} />
+          <PartidosTab isAdmin={isAdmin} esDT={esDT} authUser={authUser} competencias={competencias} roster={roster} />
         )}
 
         {/* ESTADÍSTICAS DE JUEGO */}
