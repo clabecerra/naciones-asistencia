@@ -116,6 +116,19 @@ export function RegistroTab({ roster, rosterLoading, rosterError, entrenamientos
                         );
                       })}
                     </tr>
+                    <tr>
+                      <th style={{ position:'sticky',left:0,zIndex:2,background:'white',textAlign:'left',padding:'4px 12px 8px',fontSize:11,color:MUTED,fontWeight:600,borderBottom:`1px solid ${LINE}`,borderRight:`1px solid ${LINE}` }}>Presentes</th>
+                      {entrenamientos.map((ent) => {
+                        const suspendido = ent.estado === 'suspendido';
+                        const presentes = roster.filter((j) => asistencia[ent.id]?.[j.id]?.estado === 'presente').length;
+                        return (
+                          <th key={ent.id} style={{ textAlign:'center',padding:'4px 4px 8px',fontSize:12,fontWeight:700,
+                            color:suspendido?'#C2938A':INK, background:suspendido?'#F6E9E6':'white', borderBottom:`1px solid ${LINE}` }}>
+                            {suspendido ? '—' : presentes}
+                          </th>
+                        );
+                      })}
+                    </tr>
                   </thead>
                   <tbody>
                     {roster.map((j) => (
