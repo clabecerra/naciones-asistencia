@@ -73,10 +73,6 @@ export function FormacionPreviaPanel({ partidoId, partido, roster, onCerrar }) {
 
   return (
     <div>
-      <p style={{ margin: '0 0 10px', fontSize: 12, color: MUTED }}>
-        La captura parte con esto cargado y sigue siendo editable ahí hasta último momento.
-      </p>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, maxWidth: 420, marginBottom: 8 }}>
         <div />
         <div style={{ border: `1.5px solid ${INK}`, borderRadius: 8, padding: '6px 8px' }}>
